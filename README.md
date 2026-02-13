@@ -1,4 +1,4 @@
-# @alpha-market/sdk
+# @alpha-arcade/sdk
 
 TypeScript SDK for trading on **Alpha Market** — Algorand prediction markets.
 
@@ -7,7 +7,7 @@ Place orders, manage positions, read orderbooks, and build automated trading bot
 ## Installation
 
 ```bash
-npm install @alpha-market/sdk algosdk @algorandfoundation/algokit-utils
+npm install @alpha-arcade/sdk algosdk @algorandfoundation/algokit-utils
 ```
 
 `algosdk` and `@algorandfoundation/algokit-utils` are peer dependencies.
@@ -15,7 +15,7 @@ npm install @alpha-market/sdk algosdk @algorandfoundation/algokit-utils
 ## Quick Start
 
 ```typescript
-import { AlphaClient } from '@alpha-market/sdk';
+import { AlphaClient } from '@alpha-arcade/sdk';
 import algosdk from 'algosdk';
 
 // 1. Setup clients
@@ -257,7 +257,7 @@ if (market) {
 These are exported for advanced users:
 
 ```typescript
-import { calculateFee, calculateMatchingOrders, getMarketGlobalState } from '@alpha-market/sdk';
+import { calculateFee, calculateMatchingOrders, getMarketGlobalState } from '@alpha-arcade/sdk';
 
 // Fee calculation
 const fee = calculateFee(1_000_000, 500_000, 70_000); // quantity, price, feeBase
@@ -283,7 +283,7 @@ const state = await getMarketGlobalState(algodClient, marketAppId);
 ## Building a Trading Bot
 
 ```typescript
-import { AlphaClient } from '@alpha-market/sdk';
+import { AlphaClient } from '@alpha-arcade/sdk';
 import algosdk from 'algosdk';
 
 const setup = () => {

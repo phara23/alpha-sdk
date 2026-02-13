@@ -1,5 +1,5 @@
 {
-  "name": "@alpha-market/sdk",
+  "name": "@alpha-arcade/sdk",
   "version": "0.1.0",
   "description": "TypeScript SDK for trading on Alpha Market — Algorand prediction markets. Place orders, manage positions, read orderbooks, and build trading bots.",
   "type": "module",
@@ -60,6 +60,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alpha-market/alpha-sdk.git"
+    "url": "https://github.com/phara23/alpha-sdk.git"
   }
 }

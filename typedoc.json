@@ -1,7 +1,7 @@
 {
   "entryPoints": ["./src/index.ts"],
   "out": "./docs",
-  "name": "@alpha-market/sdk",
+  "name": "@alpha-arcade/sdk",
   "readme": "./README.md",
   "excludePrivate": true,
   "excludeInternal": true,

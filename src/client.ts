@@ -44,7 +44,7 @@ import { getMarkets as fetchMarkets, getMarket as fetchMarket } from './modules/
  *
  * @example
  * ```typescript
- * import { AlphaClient } from '@alpha-market/sdk';
+ * import { AlphaClient } from '@alpha-arcade/sdk';
  * import algosdk from 'algosdk';
  *
  * const algodClient = new algosdk.Algodv2('', 'https://mainnet-api.algonode.cloud', 443);
