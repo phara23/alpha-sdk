@@ -120,15 +120,15 @@ const createOrder = async (
   config: AlphaClientConfig,
   params: CreateLimitOrderParams & { slippage: number; matchingOrders: CounterpartyMatch[] },
 ): Promise<CreateOrderResult> => {
-  const { algodClient, indexerClient, signer, activeAddress, matcherAppId, usdcAssetId, feeAddress } = config;
+  const { algodClient, indexerClient, signer, activeAddress, matcherAppId, usdcAssetId } = config;
   const { marketAppId, position, price, quantity, isBuying, slippage, matchingOrders } = params;
 
   const globalState = await getMarketGlobalState(algodClient, marketAppId);
   const yesAssetId = globalState.yes_asset_id;
   const noAssetId = globalState.no_asset_id;
   const feeBase = params.feeBase ?? globalState.fee_base_percent;
-  // Use the market's on-chain fee address for matching (must be in accounts array)
-  const marketFeeAddress = globalState.fee_address || feeAddress;
+  // Always use the market's on-chain fee address (must be in accounts array for matching)
+  const marketFeeAddress = globalState.fee_address;
 
   const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress };
   const marketClient = new MarketAppClient(
@@ -313,14 +313,14 @@ export const proposeMatch = async (
   config: AlphaClientConfig,
   params: ProposeMatchParams,
 ): Promise<ProposeMatchResult> => {
-  const { algodClient, signer, activeAddress, matcherAppId, usdcAssetId, feeAddress } = config;
+  const { algodClient, signer, activeAddress, matcherAppId, usdcAssetId } = config;
   const { marketAppId, makerEscrowAppId, makerAddress, quantityMatched } = params;
 
   const globalState = await getMarketGlobalState(algodClient, marketAppId);
   const yesAssetId = globalState.yes_asset_id;
   const noAssetId = globalState.no_asset_id;
-  // Use the market's on-chain fee address for matching (must be in accounts array)
-  const marketFeeAddress = globalState.fee_address || feeAddress;
+  // Always use the market's on-chain fee address
+  const marketFeeAddress = globalState.fee_address;
 
   const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress };
   const matcherClient = new MatcherAppClient(

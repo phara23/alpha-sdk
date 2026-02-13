@@ -34,7 +34,6 @@ export const createTestClient = (): AlphaClient | null => {
     activeAddress: account.addr,
     matcherAppId: Number(process.env.TEST_MATCHER_APP_ID || '3078581851'),
     usdcAssetId: Number(process.env.TEST_USDC_ASSET_ID || '31566704'),
-    feeAddress: process.env.TEST_FEE_ADDRESS || account.addr,
     apiBaseUrl: process.env.TEST_API_BASE_URL || 'https://partners.alphaarcade.com/api',
     apiKey: process.env.ALPHA_API_KEY || '',
   });
@@ -62,7 +61,6 @@ export const createApiOnlyClient = (): AlphaClient | null => {
     activeAddress: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
     matcherAppId: 3078581851,
     usdcAssetId: 31566704,
-    feeAddress: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
     apiBaseUrl: process.env.TEST_API_BASE_URL || 'https://partners.alphaarcade.com/api',
     apiKey,
   });

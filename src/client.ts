@@ -57,9 +57,9 @@ import { getMarkets as fetchMarkets, getMarket as fetchMarket } from './modules/
  *   indexerClient,
  *   signer,
  *   activeAddress: account.addr,
- *   matcherAppId: 741347297,
+ *   matcherAppId: 3078581851,
  *   usdcAssetId: 31566704,
- *   feeAddress: 'FEE_ADDRESS_HERE',
+ *   apiKey: 'YOUR_API_KEY',
  * });
  *
  * // Fetch markets
@@ -85,7 +85,6 @@ export class AlphaClient {
     if (!config.activeAddress) throw new Error('activeAddress is required');
     if (!config.matcherAppId) throw new Error('matcherAppId is required');
     if (!config.usdcAssetId) throw new Error('usdcAssetId is required');
-    if (!config.feeAddress) throw new Error('feeAddress is required');
     if (!config.apiKey) throw new Error('apiKey is required');
 
     this.config = {

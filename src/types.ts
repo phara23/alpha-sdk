@@ -18,8 +18,6 @@ export type AlphaClientConfig = {
   matcherAppId: number;
   /** USDC ASA ID on Algorand (mainnet: 31566704) */
   usdcAssetId: number;
-  /** Platform fee collection address */
-  feeAddress: string;
   /** Base URL for the Alpha REST API (default: https://partners.alphaarcade.com/api) */
   apiBaseUrl?: string;
   /** API key for the Alpha partners API (passed as x-api-key header) */

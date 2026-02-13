@@ -32,9 +32,8 @@ const client = new AlphaClient({
   indexerClient,
   signer,
   activeAddress: account.addr,
-  matcherAppId: 741347297,
+  matcherAppId: 3078581851,
   usdcAssetId: 31566704,
-  feeAddress: 'YOUR_FEE_ADDRESS',
   apiKey: 'YOUR_API_KEY',
 });
 
@@ -71,9 +70,8 @@ new AlphaClient(config: AlphaClientConfig)
 | `indexerClient` | `algosdk.Indexer` | Yes | Algorand indexer client |
 | `signer` | `TransactionSigner` | Yes | Transaction signer |
 | `activeAddress` | `string` | Yes | Your Algorand address |
-| `matcherAppId` | `number` | Yes | Matcher contract app ID (mainnet: `741347297`) |
+| `matcherAppId` | `number` | Yes | Matcher contract app ID (mainnet: `3078581851`) |
 | `usdcAssetId` | `number` | Yes | USDC ASA ID (mainnet: `31566704`) |
-| `feeAddress` | `string` | Yes | Platform fee address |
 | `apiKey` | `string` | Yes | Alpha partners API key (x-api-key header) |
 | `apiBaseUrl` | `string` | No | API base URL (default: `https://partners.alphaarcade.com/api`) |
 
@@ -296,10 +294,9 @@ const setup = () => {
     indexerClient,
     signer: algosdk.makeBasicAccountTransactionSigner(account),
     activeAddress: account.addr,
-    matcherAppId: 741347297,
+    matcherAppId: 3078581851,
     usdcAssetId: 31566704,
-    feeAddress: 'YOUR_FEE_ADDRESS',
-  apiKey: 'YOUR_API_KEY',
+    apiKey: 'YOUR_API_KEY',
   });
 };
 
