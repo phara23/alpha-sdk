@@ -1,0 +1,65 @@
+{
+  "name": "@alpha-market/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for trading on Alpha Market — Algorand prediction markets. Place orders, manage positions, read orderbooks, and build trading bots.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "docs": "typedoc --out docs src/index.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/fees.test.ts",
+    "test:integration": "vitest run tests/markets.test.ts tests/orderbook.test.ts tests/trading.test.ts tests/matching.test.ts tests/positions.test.ts tests/claim.test.ts",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/algokit-utils": "^6.0.2",
+    "algosdk": "^2.7.0"
+  },
+  "dependencies": {
+    "decimal.js": "^10.4.3"
+  },
+  "devDependencies": {
+    "@algorandfoundation/algokit-utils": "^6.0.2",
+    "@types/node": "^25.2.3",
+    "algosdk": "^2.7.0",
+    "dotenv": "^16.4.7",
+    "eslint": "^9.0.0",
+    "tsup": "^8.5.0",
+    "typedoc": "^0.27.0",
+    "typescript": "^5.6.3",
+    "vitest": "^3.0.0"
+  },
+  "keywords": [
+    "algorand",
+    "prediction-market",
+    "trading",
+    "sdk",
+    "alpha-market",
+    "defi",
+    "orderbook"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alpha-market/alpha-sdk.git"
+  }
+}

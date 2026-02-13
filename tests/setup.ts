@@ -1,0 +1,77 @@
+import dotenv from 'dotenv';
+import algosdk from 'algosdk';
+import { AlphaClient } from '../src/index.js';
+
+dotenv.config();
+
+/**
+ * Creates an AlphaClient from environment variables for testing.
+ * Returns null if TEST_MNEMONIC is not set (unit-test-only mode).
+ */
+export const createTestClient = (): AlphaClient | null => {
+  const mnemonic = process.env.TEST_MNEMONIC;
+  if (!mnemonic || mnemonic.includes('word1')) {
+    return null;
+  }
+
+  const algodServer = process.env.TEST_ALGOD_SERVER || 'https://mainnet-api.algonode.cloud';
+  const algodToken = process.env.TEST_ALGOD_TOKEN || '';
+  const algodPort = process.env.TEST_ALGOD_PORT || '443';
+  const indexerServer = process.env.TEST_INDEXER_SERVER || 'https://mainnet-idx.algonode.cloud';
+  const indexerToken = process.env.TEST_INDEXER_TOKEN || '';
+  const indexerPort = process.env.TEST_INDEXER_PORT || '443';
+
+  const algodClient = new algosdk.Algodv2(algodToken, algodServer, algodPort);
+  const indexerClient = new algosdk.Indexer(indexerToken, indexerServer, indexerPort);
+
+  const account = algosdk.mnemonicToSecretKey(mnemonic);
+  const signer = algosdk.makeBasicAccountTransactionSigner(account);
+
+  return new AlphaClient({
+    algodClient,
+    indexerClient,
+    signer,
+    activeAddress: account.addr,
+    matcherAppId: Number(process.env.TEST_MATCHER_APP_ID || '3078581851'),
+    usdcAssetId: Number(process.env.TEST_USDC_ASSET_ID || '31566704'),
+    feeAddress: process.env.TEST_FEE_ADDRESS || account.addr,
+    apiBaseUrl: process.env.TEST_API_BASE_URL || 'https://partners.alphaarcade.com/api',
+    apiKey: process.env.ALPHA_API_KEY || '',
+  });
+};
+
+/**
+ * Creates a lightweight AlphaClient for API-only tests (no mnemonic needed).
+ * Only requires ALPHA_API_KEY to be set. Returns null if not set.
+ */
+export const createApiOnlyClient = (): AlphaClient | null => {
+  const apiKey = process.env.ALPHA_API_KEY;
+  if (!apiKey || apiKey === 'your_api_key_here') {
+    return null;
+  }
+
+  // Use dummy algod/indexer/signer -- they won't be called for API-only methods
+  const algodClient = new algosdk.Algodv2('', 'https://mainnet-api.algonode.cloud', 443);
+  const indexerClient = new algosdk.Indexer('', 'https://mainnet-idx.algonode.cloud', 443);
+  const dummySigner: algosdk.TransactionSigner = async () => [];
+
+  return new AlphaClient({
+    algodClient,
+    indexerClient,
+    signer: dummySigner,
+    activeAddress: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
+    matcherAppId: 3078581851,
+    usdcAssetId: 31566704,
+    feeAddress: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
+    apiBaseUrl: process.env.TEST_API_BASE_URL || 'https://partners.alphaarcade.com/api',
+    apiKey,
+  });
+};
+
+/**
+ * Gets the test market app ID from environment.
+ */
+export const getTestMarketAppId = (): number | null => {
+  const id = process.env.TEST_MARKET_APP_ID;
+  return id ? Number(id) : null;
+};

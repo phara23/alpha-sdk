@@ -1,0 +1,9 @@
+{
+  "entryPoints": ["./src/index.ts"],
+  "out": "./docs",
+  "name": "@alpha-market/sdk",
+  "readme": "./README.md",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "includeVersion": true
+}
