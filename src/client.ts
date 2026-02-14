@@ -31,7 +31,14 @@ import {
   getPositions,
 } from './modules/positions.js';
 import { getOrderbook, getOpenOrders } from './modules/orderbook.js';
-import { getMarkets as fetchMarkets, getMarket as fetchMarket } from './modules/markets.js';
+import {
+  getMarkets as fetchMarkets,
+  getMarket as fetchMarket,
+  getMarketsOnChain,
+  getMarketOnChain,
+  getMarketsFromApi,
+  getMarketFromApi,
+} from './modules/markets.js';
 
 /**
  * The main client for interacting with Alpha Market prediction markets on Algorand.
@@ -59,7 +66,6 @@ import { getMarkets as fetchMarkets, getMarket as fetchMarket } from './modules/
  *   activeAddress: account.addr,
  *   matcherAppId: 3078581851,
  *   usdcAssetId: 31566704,
- *   apiKey: 'YOUR_API_KEY',
  * });
  *
  * // Fetch markets
@@ -85,7 +91,6 @@ export class AlphaClient {
     if (!config.activeAddress) throw new Error('activeAddress is required');
     if (!config.matcherAppId) throw new Error('matcherAppId is required');
     if (!config.usdcAssetId) throw new Error('usdcAssetId is required');
-    if (!config.apiKey) throw new Error('apiKey is required');
 
     this.config = {
       ...config,
@@ -240,9 +245,10 @@ export class AlphaClient {
   // ============================================
 
   /**
-   * Fetches all live, tradeable markets from the Alpha API.
+   * Fetches all live, tradeable markets.
    *
-   * Automatically paginates to retrieve all markets.
+   * If an API key is configured, uses the Alpha REST API (richer data: images, categories, volume).
+   * Otherwise, discovers markets on-chain from the market creator address (no API key needed).
    *
    * @returns Array of live markets
    */
@@ -253,10 +259,57 @@ export class AlphaClient {
   /**
    * Fetches a single market by its ID.
    *
-   * @param marketId - The market ID
+   * If an API key is configured, uses the Alpha REST API.
+   * Otherwise, reads the market's on-chain global state (pass the market app ID as a string).
+   *
+   * @param marketId - The market ID (UUID for API, app ID string for on-chain)
    * @returns The market data, or null if not found
    */
   async getMarket(marketId: string): Promise<Market | null> {
     return fetchMarket(this.config, marketId);
+  }
+
+  /**
+   * Fetches all live markets directly from the blockchain (no API key needed).
+   *
+   * Discovers markets by looking up all apps created by the market creator address.
+   * Returns core data: title, asset IDs, resolution time, fees.
+   * Does NOT include images, categories, volume, or probabilities.
+   *
+   * @returns Array of live markets from on-chain data
+   */
+  async getMarketsOnChain(): Promise<Market[]> {
+    return getMarketsOnChain(this.config);
+  }
+
+  /**
+   * Fetches a single market by app ID directly from the blockchain (no API key needed).
+   *
+   * @param marketAppId - The market app ID
+   * @returns The market data, or null if not found
+   */
+  async getMarketOnChain(marketAppId: number): Promise<Market | null> {
+    return getMarketOnChain(this.config, marketAppId);
+  }
+
+  /**
+   * Fetches all live markets from the Alpha REST API (requires API key).
+   *
+   * Returns richer data than on-chain: images, categories, volume, probabilities.
+   *
+   * @returns Array of live markets from the API
+   */
+  async getMarketsFromApi(): Promise<Market[]> {
+    return getMarketsFromApi(this.config);
+  }
+
+  /**
+   * Fetches a single market by ID from the Alpha REST API (requires API key).
+   *
+   * @param marketId - The market UUID
+   * @returns The market data, or null if not found
+   */
+  async getMarketFromApi(marketId: string): Promise<Market | null> {
+    return getMarketFromApi(this.config, marketId);
   }
 }

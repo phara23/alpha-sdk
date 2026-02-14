@@ -14,22 +14,25 @@ export type AlphaClientConfig = {
   signer: TransactionSigner;
   /** The active Algorand address that will sign transactions */
   activeAddress: string;
-  /** Matcher contract app ID (mainnet: 741347297) */
+  /** Matcher contract app ID (mainnet: 3078581851) */
   matcherAppId: number;
   /** USDC ASA ID on Algorand (mainnet: 31566704) */
   usdcAssetId: number;
   /** Base URL for the Alpha REST API (default: https://partners.alphaarcade.com/api) */
   apiBaseUrl?: string;
-  /** API key for the Alpha partners API (passed as x-api-key header) */
-  apiKey: string;
+  /** API key for the Alpha partners API. Optional -- if not provided, markets are loaded on-chain. */
+  apiKey?: string;
+  /** Market creator address for on-chain market discovery. Defaults to the Alpha Arcade mainnet creator. */
+  marketCreatorAddress?: string;
 };
 
 // ============================================
 // Market Types
 // ============================================
 
-/** A prediction market returned from the Alpha API */
+/** A prediction market (from the Alpha API or on-chain discovery) */
 export type Market = {
+  /** Market ID (app ID as string for on-chain, UUID for API) */
   id: string;
   title: string;
   slug?: string;
@@ -37,9 +40,13 @@ export type Market = {
   marketAppId: number;
   yesAssetId: number;
   noAssetId: number;
-  yesProb: number;
-  noProb: number;
-  volume: number;
+  /** YES probability (API only -- not available from on-chain lookup) */
+  yesProb?: number;
+  /** NO probability (API only -- not available from on-chain lookup) */
+  noProb?: number;
+  /** Trading volume (API only -- not available from on-chain lookup) */
+  volume?: number;
+  /** End/resolution timestamp in seconds */
   endTs: number;
   resolution?: number;
   isResolved?: boolean;
@@ -48,6 +55,8 @@ export type Market = {
   featured?: boolean;
   options?: MarketOption[];
   feeBase?: number;
+  /** Data source: 'onchain' or 'api' */
+  source?: 'onchain' | 'api';
   [key: string]: unknown;
 };
 

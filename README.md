@@ -26,7 +26,7 @@ const indexerClient = new algosdk.Indexer('', 'https://mainnet-idx.algonode.clou
 const account = algosdk.mnemonicToSecretKey('your twenty five word mnemonic ...');
 const signer = algosdk.makeBasicAccountTransactionSigner(account);
 
-// 3. Initialize the client
+// 3. Initialize the client (no API key needed!)
 const client = new AlphaClient({
   algodClient,
   indexerClient,
@@ -34,10 +34,9 @@ const client = new AlphaClient({
   activeAddress: account.addr,
   matcherAppId: 3078581851,
   usdcAssetId: 31566704,
-  apiKey: 'YOUR_API_KEY',
 });
 
-// 4. Fetch live markets
+// 4. Fetch live markets (reads directly from chain)
 const markets = await client.getMarkets();
 console.log(`Found ${markets.length} live markets`);
 
@@ -72,8 +71,9 @@ new AlphaClient(config: AlphaClientConfig)
 | `activeAddress` | `string` | Yes | Your Algorand address |
 | `matcherAppId` | `number` | Yes | Matcher contract app ID (mainnet: `3078581851`) |
 | `usdcAssetId` | `number` | Yes | USDC ASA ID (mainnet: `31566704`) |
-| `apiKey` | `string` | Yes | Alpha partners API key (x-api-key header) |
+| `apiKey` | `string` | No | Alpha partners API key. If provided, `getMarkets()` uses the API for richer data (images, categories, volume). If omitted, markets are discovered on-chain. |
 | `apiBaseUrl` | `string` | No | API base URL (default: `https://partners.alphaarcade.com/api`) |
+| `marketCreatorAddress` | `string` | No | Market creator address for on-chain discovery (defaults to Alpha Arcade mainnet) |
 
 ---
 
@@ -226,26 +226,37 @@ for (const order of orders) {
 
 ### Markets
 
-#### `getMarkets()`
+Markets can be loaded **on-chain** (default, no API key) or via the **REST API** (richer data, requires API key).
 
-Fetches all live, tradeable markets.
+#### `getMarkets()` / `getMarket(marketId)`
+
+Smart defaults — uses the API if `apiKey` is set, otherwise reads from chain.
 
 ```typescript
 const markets = await client.getMarkets();
 for (const m of markets) {
-  console.log(`${m.title} — Yes: ${m.yesProb}%, Vol: $${m.volume}`);
+  console.log(`${m.title} — App ID: ${m.marketAppId}, source: ${m.source}`);
 }
+
+const market = await client.getMarket('12345'); // app ID string for on-chain, UUID for API
 ```
 
-#### `getMarket(marketId)`
+#### `getMarketsOnChain()` / `getMarketOnChain(marketAppId)`
 
-Fetches a single market by ID.
+Always reads from the blockchain. No API key needed. Returns core data: title, asset IDs, resolution time, fees.
 
 ```typescript
-const market = await client.getMarket('abc123');
-if (market) {
-  console.log(market.title, market.marketAppId);
-}
+const markets = await client.getMarketsOnChain();
+const market = await client.getMarketOnChain(3012345678);
+```
+
+#### `getMarketsFromApi()` / `getMarketFromApi(marketId)`
+
+Always uses the REST API. Requires `apiKey`. Returns richer data: images, categories, volume, probabilities.
+
+```typescript
+const markets = await client.getMarketsFromApi();
+const market = await client.getMarketFromApi('uuid-here');
 ```
 
 ---
@@ -296,13 +307,12 @@ const setup = () => {
     activeAddress: account.addr,
     matcherAppId: 3078581851,
     usdcAssetId: 31566704,
-    apiKey: 'YOUR_API_KEY',
   });
 };
 
 const run = async () => {
   const client = setup();
-  const markets = await client.getMarkets();
+  const markets = await client.getMarkets(); // Loads from chain, no API key needed
 
   for (const market of markets) {
     const book = await client.getOrderbook(market.marketAppId);

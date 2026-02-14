@@ -35,21 +35,15 @@ export const createTestClient = (): AlphaClient | null => {
     matcherAppId: Number(process.env.TEST_MATCHER_APP_ID || '3078581851'),
     usdcAssetId: Number(process.env.TEST_USDC_ASSET_ID || '31566704'),
     apiBaseUrl: process.env.TEST_API_BASE_URL || 'https://partners.alphaarcade.com/api',
-    apiKey: process.env.ALPHA_API_KEY || '',
+    apiKey: process.env.ALPHA_API_KEY || undefined,
   });
 };
 
 /**
- * Creates a lightweight AlphaClient for API-only tests (no mnemonic needed).
- * Only requires ALPHA_API_KEY to be set. Returns null if not set.
+ * Creates a lightweight AlphaClient for read-only tests (no mnemonic or API key needed).
+ * Uses on-chain market discovery by default. If ALPHA_API_KEY is set, API-based calls also work.
  */
-export const createApiOnlyClient = (): AlphaClient | null => {
-  const apiKey = process.env.ALPHA_API_KEY;
-  if (!apiKey || apiKey === 'your_api_key_here') {
-    return null;
-  }
-
-  // Use dummy algod/indexer/signer -- they won't be called for API-only methods
+export const createReadOnlyClient = (): AlphaClient => {
   const algodClient = new algosdk.Algodv2('', 'https://mainnet-api.algonode.cloud', 443);
   const indexerClient = new algosdk.Indexer('', 'https://mainnet-idx.algonode.cloud', 443);
   const dummySigner: algosdk.TransactionSigner = async () => [];
@@ -62,8 +56,13 @@ export const createApiOnlyClient = (): AlphaClient | null => {
     matcherAppId: 3078581851,
     usdcAssetId: 31566704,
     apiBaseUrl: process.env.TEST_API_BASE_URL || 'https://partners.alphaarcade.com/api',
-    apiKey,
+    apiKey: process.env.ALPHA_API_KEY || undefined,
   });
+};
+
+/** @deprecated Use createReadOnlyClient instead */
+export const createApiOnlyClient = (): AlphaClient | null => {
+  return createReadOnlyClient();
 };
 
 /**
