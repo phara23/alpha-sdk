@@ -293,8 +293,11 @@ export const getPositions = async (
   const nonZeroAssets = assets.filter((a: any) => Number(a.amount) > 0);
   if (nonZeroAssets.length === 0) return [];
 
-  // For each asset, try to find the market it belongs to by looking up
-  // the asset's creator (which is the market app address)
+  // Alpha Market tokens are named "Alpha Market {appId} Yes" or "Alpha Market {appId} No".
+  // We parse the market app ID directly from the asset name, which is far more
+  // reliable than trying to reverse-lookup the app from the creator address
+  // (the creator address is the market app address, and lookupAccountCreatedApplications
+  // on it returns escrow apps, not the market app itself).
   const positions = new Map<number, WalletPosition>();
 
   for (const asset of nonZeroAssets) {
@@ -303,51 +306,56 @@ export const getPositions = async (
 
     try {
       const assetInfo = await indexerClient.lookupAssetByID(assetId).do();
-      const creator = assetInfo.asset?.params?.creator;
-      if (!creator) continue;
+      const assetName: string = assetInfo.asset?.params?.name ?? '';
+      const unitName: string = assetInfo.asset?.params?.['unit-name'] ?? '';
 
-      // Try to find a market app at this address
-      const createdApps = await indexerClient.lookupAccountCreatedApplications(creator).limit(1).do();
-      if (!createdApps.applications?.length) continue;
+      // Only process Alpha Market outcome tokens
+      if (!unitName.startsWith('ALPHA-')) continue;
 
-      // Read the market app's global state to confirm this is a market
-      // and determine which token (yes/no) this asset is
-      const appId = createdApps.applications[0].id;
-      try {
-        const appInfo = await indexerClient.lookupApplications(appId).do();
-        const rawState = appInfo.application?.params?.['global-state'];
-        if (!rawState) continue;
+      // Parse market app ID from asset name: "Alpha Market {appId} Yes" or "Alpha Market {appId} No"
+      const match = assetName.match(/^Alpha Market (\d+) (Yes|No)$/);
+      if (!match) continue;
 
-        let yesAssetIdOnChain = 0;
-        let noAssetIdOnChain = 0;
+      const marketAppId = Number(match[1]);
+      const side = match[2] as 'Yes' | 'No';
 
-        for (const item of rawState) {
-          const key = Buffer.from(item.key, 'base64').toString();
-          if (key === 'yes_asset_id') yesAssetIdOnChain = Number(item.value.uint);
-          if (key === 'no_asset_id') noAssetIdOnChain = Number(item.value.uint);
-        }
-
-        if (yesAssetIdOnChain === 0 && noAssetIdOnChain === 0) continue;
-
-        const existing = positions.get(appId) ?? {
-          marketAppId: appId,
-          yesAssetId: yesAssetIdOnChain,
-          noAssetId: noAssetIdOnChain,
-          yesBalance: 0,
-          noBalance: 0,
-        };
-
-        if (assetId === yesAssetIdOnChain) {
+      // Look up the market app's global state to get both asset IDs
+      const existing = positions.get(marketAppId);
+      if (existing) {
+        // We already have this market from the other token; just add the balance
+        if (side === 'Yes') {
           existing.yesBalance = amount;
-        } else if (assetId === noAssetIdOnChain) {
-          existing.noBalance = amount;
         } else {
+          existing.noBalance = amount;
+        }
+      } else {
+        // First time seeing this market -- fetch global state for both asset IDs
+        try {
+          const appInfo = await indexerClient.lookupApplications(marketAppId).do();
+          const rawState = appInfo.application?.params?.['global-state'];
+          if (!rawState) continue;
+
+          let yesAssetIdOnChain = 0;
+          let noAssetIdOnChain = 0;
+
+          for (const item of rawState) {
+            const key = Buffer.from(item.key, 'base64').toString();
+            if (key === 'yes_asset_id') yesAssetIdOnChain = Number(item.value.uint);
+            if (key === 'no_asset_id') noAssetIdOnChain = Number(item.value.uint);
+          }
+
+          if (yesAssetIdOnChain === 0 && noAssetIdOnChain === 0) continue;
+
+          positions.set(marketAppId, {
+            marketAppId,
+            yesAssetId: yesAssetIdOnChain,
+            noAssetId: noAssetIdOnChain,
+            yesBalance: side === 'Yes' ? amount : 0,
+            noBalance: side === 'No' ? amount : 0,
+          });
+        } catch {
           continue;
         }
-
-        positions.set(appId, existing);
-      } catch {
-        continue;
       }
     } catch {
       continue;
