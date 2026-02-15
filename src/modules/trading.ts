@@ -105,12 +105,20 @@ export const createMarketOrder = async (
   }
 
   const totalMatchedQuantity = matchingOrders.reduce((sum, o) => sum + o.quantity, 0);
+
+  // Compute volume-weighted average fill price from matched counterparty prices
+  const matchedPrice = totalMatchedQuantity > 0
+    ? Math.round(
+        matchingOrders.reduce((sum, o) => sum + (o.price ?? params.price) * o.quantity, 0) / totalMatchedQuantity,
+      )
+    : params.price;
+
   const result = await createOrder(config, {
     ...params,
     matchingOrders,
   });
 
-  return { ...result, matchedQuantity: totalMatchedQuantity };
+  return { ...result, matchedQuantity: totalMatchedQuantity, matchedPrice };
 };
 
 /**
@@ -296,6 +304,7 @@ export const cancelOrder = async (
   return {
     success: true,
     txIds: result.txIDs,
+    confirmedRound: result.confirmedRound,
   };
 };
 
@@ -366,5 +375,6 @@ export const proposeMatch = async (
   return {
     success: true,
     txIds: result.txIDs,
+    confirmedRound: result.confirmedRound,
   };
 };

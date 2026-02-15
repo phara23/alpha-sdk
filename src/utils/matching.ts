@@ -85,6 +85,7 @@ export const calculateMatchingOrders = (
         escrowAppId: counterParty.escrowAppId,
         quantity: amountToTake,
         owner: counterParty.owner,
+        price: counterParty.price,
       });
       volumeLeft -= amountToTake;
     }

@@ -169,6 +169,8 @@ export type CounterpartyMatch = {
   quantity: number;
   /** Owner address of the counterparty order */
   owner: string;
+  /** Effective fill price in microunits (accounts for complementary matching, e.g. 1_000_000 - noPrice for YES buys) */
+  price?: number;
 };
 
 /** Result of creating an order */
@@ -185,6 +187,8 @@ export type CreateOrderResult = {
 export type CreateMarketOrderResult = CreateOrderResult & {
   /** Total quantity that was matched */
   matchedQuantity: number;
+  /** Weighted average fill price in microunits (accounts for complementary matching) */
+  matchedPrice: number;
 };
 
 /** Result of cancelling an order */
@@ -193,6 +197,8 @@ export type CancelOrderResult = {
   success: boolean;
   /** Transaction IDs */
   txIds: string[];
+  /** Confirmed round number */
+  confirmedRound: number;
 };
 
 /** Result of proposing a match */
@@ -201,6 +207,8 @@ export type ProposeMatchResult = {
   success: boolean;
   /** Transaction IDs */
   txIds: string[];
+  /** Confirmed round number */
+  confirmedRound: number;
 };
 
 // ============================================
@@ -295,12 +303,16 @@ export type ClaimResult = {
   success: boolean;
   txIds: string[];
   confirmedRound: number;
+  /** Amount of tokens claimed in microunits */
+  amountClaimed: number;
 };
 
 /** A wallet's token position in a market */
 export type WalletPosition = {
   /** Market app ID */
   marketAppId: number;
+  /** Market title (fetched from on-chain global state) */
+  title: string;
   /** YES token ASA ID */
   yesAssetId: number;
   /** NO token ASA ID */

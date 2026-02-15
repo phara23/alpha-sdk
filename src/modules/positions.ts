@@ -262,6 +262,7 @@ export const claim = async (
     success: true,
     txIds: result.txIDs,
     confirmedRound: result.confirmedRound,
+    amountClaimed: tokenBalance,
   };
 };
 
@@ -329,7 +330,7 @@ export const getPositions = async (
           existing.noBalance = amount;
         }
       } else {
-        // First time seeing this market -- fetch global state for both asset IDs
+        // First time seeing this market -- fetch global state for both asset IDs and title
         try {
           const appInfo = await indexerClient.lookupApplications(marketAppId).do();
           const rawState = appInfo.application?.params?.['global-state'];
@@ -337,17 +338,20 @@ export const getPositions = async (
 
           let yesAssetIdOnChain = 0;
           let noAssetIdOnChain = 0;
+          let marketTitle = '';
 
           for (const item of rawState) {
             const key = Buffer.from(item.key, 'base64').toString();
             if (key === 'yes_asset_id') yesAssetIdOnChain = Number(item.value.uint);
             if (key === 'no_asset_id') noAssetIdOnChain = Number(item.value.uint);
+            if (key === 'title') marketTitle = Buffer.from(item.value.bytes, 'base64').toString();
           }
 
           if (yesAssetIdOnChain === 0 && noAssetIdOnChain === 0) continue;
 
           positions.set(marketAppId, {
             marketAppId,
+            title: marketTitle,
             yesAssetId: yesAssetIdOnChain,
             noAssetId: noAssetIdOnChain,
             yesBalance: side === 'Yes' ? amount : 0,
