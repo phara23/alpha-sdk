@@ -7,6 +7,9 @@ const DEFAULT_API_BASE_URL = 'https://partners.alphaarcade.com/api';
 /** The default Alpha Arcade mainnet market creator address */
 export const DEFAULT_MARKET_CREATOR_ADDRESS = '5P5Y6HTWUNG2E3VXBQDZN3ENZD3JPAIR5PKT3LOYJAPAUKOLFD6KANYTRY';
 
+/** Normalize a timestamp to seconds. If > 10 billion, assume milliseconds and convert. */
+const toSeconds = (ts: number): number => ts > 10_000_000_000 ? Math.floor(ts / 1000) : ts;
+
 /**
  * Groups multi-choice option markets under parent markets.
  *
@@ -219,11 +222,17 @@ export const getMarketsFromApi = async (config: AlphaClientConfig): Promise<Mark
 
     const data = await response.json();
 
+    const normalizeApiMarket = (m: any): Market => ({
+      ...m,
+      endTs: m.endTs ? toSeconds(m.endTs) : 0,
+      source: 'api' as const,
+    });
+
     if (Array.isArray(data)) {
-      allMarkets.push(...(data.map((m: any) => ({ ...m, source: 'api' as const }))));
+      allMarkets.push(...data.map(normalizeApiMarket));
       hasMore = false;
     } else if (data.markets) {
-      allMarkets.push(...(data.markets.map((m: any) => ({ ...m, source: 'api' as const }))));
+      allMarkets.push(...data.markets.map(normalizeApiMarket));
       lastEvaluatedKey = data.lastEvaluatedKey;
       hasMore = !!lastEvaluatedKey;
     } else {
@@ -261,7 +270,10 @@ export const getMarketFromApi = async (
 
   const data = await response.json();
   const market = data.market ?? data ?? null;
-  if (market) market.source = 'api';
+  if (market) {
+    market.source = 'api';
+    if (market.endTs) market.endTs = toSeconds(market.endTs);
+  }
   return market;
 };
 
