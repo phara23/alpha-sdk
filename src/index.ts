@@ -41,7 +41,7 @@ export type {
 } from './types.js';
 
 // Market discovery
-export { DEFAULT_MARKET_CREATOR_ADDRESS, getMarketsOnChain, getMarketOnChain, getMarketsFromApi, getMarketFromApi } from './modules/markets.js';
+export { DEFAULT_MARKET_CREATOR_ADDRESS, getMarketsOnChain, getMarketOnChain, getLiveMarketsFromApi, getMarketFromApi } from './modules/markets.js';
 
 // Utility functions (for advanced users)
 export { calculateFee, calculateFeeFromTotal } from './utils/fees.js';

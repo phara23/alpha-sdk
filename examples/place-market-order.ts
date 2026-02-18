@@ -25,7 +25,7 @@ const main = async () => {
     apiKey: process.env.ALPHA_API_KEY!,
   });
 
-  const markets = await client.getMarkets();
+  const markets = await client.getLiveMarkets();
   const market = markets[0];
   console.log(`Market: ${market.title}`);
 

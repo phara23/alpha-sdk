@@ -37,7 +37,7 @@ const client = new AlphaClient({
 });
 
 // 4. Fetch live markets (reads directly from chain)
-const markets = await client.getMarkets();
+const markets = await client.getLiveMarkets();
 console.log(`Found ${markets.length} live markets`);
 
 // 5. Place a limit buy order on the first market
@@ -71,7 +71,7 @@ new AlphaClient(config: AlphaClientConfig)
 | `activeAddress` | `string` | Yes | Your Algorand address |
 | `matcherAppId` | `number` | Yes | Matcher contract app ID (mainnet: `3078581851`) |
 | `usdcAssetId` | `number` | Yes | USDC ASA ID (mainnet: `31566704`) |
-| `apiKey` | `string` | No | Alpha partners API key. If provided, `getMarkets()` uses the API for richer data (images, categories, volume). If omitted, markets are discovered on-chain. |
+| `apiKey` | `string` | No | Alpha partners API key. If provided, `getLiveMarkets()` uses the API for richer data (images, categories, volume). If omitted, markets are discovered on-chain. |
 | `apiBaseUrl` | `string` | No | API base URL (default: `https://partners.alphaarcade.com/api`) |
 | `marketCreatorAddress` | `string` | No | Market creator address for on-chain discovery (defaults to Alpha Arcade mainnet) |
 
@@ -228,12 +228,12 @@ for (const order of orders) {
 
 Markets can be loaded **on-chain** (default, no API key) or via the **REST API** (richer data, requires API key).
 
-#### `getMarkets()` / `getMarket(marketId)`
+#### `getLiveMarkets()` / `getMarket(marketId)`
 
 Smart defaults — uses the API if `apiKey` is set, otherwise reads from chain.
 
 ```typescript
-const markets = await client.getMarkets();
+const markets = await client.getLiveMarkets();
 for (const m of markets) {
   console.log(`${m.title} — App ID: ${m.marketAppId}, source: ${m.source}`);
 }
@@ -250,12 +250,12 @@ const markets = await client.getMarketsOnChain();
 const market = await client.getMarketOnChain(3012345678);
 ```
 
-#### `getMarketsFromApi()` / `getMarketFromApi(marketId)`
+#### `getLiveMarketsFromApi()` / `getMarketFromApi(marketId)`
 
 Always uses the REST API. Requires `apiKey`. Returns richer data: images, categories, volume, probabilities.
 
 ```typescript
-const markets = await client.getMarketsFromApi();
+const markets = await client.getLiveMarketsFromApi();
 const market = await client.getMarketFromApi('uuid-here');
 ```
 
@@ -312,7 +312,7 @@ const setup = () => {
 
 const run = async () => {
   const client = setup();
-  const markets = await client.getMarkets(); // Loads from chain, no API key needed
+  const markets = await client.getLiveMarkets(); // Loads from chain, no API key needed
 
   for (const market of markets) {
     const book = await client.getOrderbook(market.marketAppId);

@@ -28,7 +28,7 @@ const main = async () => {
   });
 
   // Fetch a market
-  const markets = await client.getMarkets();
+  const markets = await client.getLiveMarkets();
   const market = markets[0];
   console.log(`Placing order on: ${market.title}`);
 

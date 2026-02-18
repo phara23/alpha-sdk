@@ -39,7 +39,7 @@ const setup = () => {
 
 const scan = async (client: AlphaClient) => {
   console.log(`[${new Date().toISOString()}] Scanning markets...`);
-  const markets = await client.getMarkets();
+  const markets = await client.getLiveMarkets();
   console.log(`Found ${markets.length} live markets`);
 
   for (const market of markets.slice(0, 10)) {

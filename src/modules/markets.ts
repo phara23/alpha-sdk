@@ -197,7 +197,7 @@ export const getMarketOnChain = async (
  * @param config - Alpha client config
  * @returns Array of live markets
  */
-export const getMarketsFromApi = async (config: AlphaClientConfig): Promise<Market[]> => {
+export const getLiveMarketsFromApi = async (config: AlphaClientConfig): Promise<Market[]> => {
   if (!config.apiKey) {
     throw new Error('apiKey is required for API-based market fetching. Use getMarketsOnChain() instead, or pass an apiKey.');
   }
@@ -213,7 +213,7 @@ export const getMarketsFromApi = async (config: AlphaClientConfig): Promise<Mark
       params.set('lastEvaluatedKey', lastEvaluatedKey);
     }
 
-    const url = `${baseUrl}/get-live-markets?${params.toString()}`;
+    const url = `${baseUrl}/get-live-markets-cached?${params.toString()}`;
     const response = await fetch(url, { headers: { 'x-api-key': config.apiKey } });
 
     if (!response.ok) {
@@ -287,9 +287,9 @@ export const getMarketFromApi = async (
  * @param config - Alpha client config
  * @returns Array of live markets
  */
-export const getMarkets = async (config: AlphaClientConfig): Promise<Market[]> => {
+export const getLiveMarkets = async (config: AlphaClientConfig): Promise<Market[]> => {
   if (config.apiKey) {
-    return getMarketsFromApi(config);
+    return getLiveMarketsFromApi(config);
   }
   return getMarketsOnChain(config);
 };

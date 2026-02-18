@@ -32,11 +32,11 @@ import {
 } from './modules/positions.js';
 import { getOrderbook, getOpenOrders } from './modules/orderbook.js';
 import {
-  getMarkets as fetchMarkets,
+  getLiveMarkets as fetchLiveMarkets,
   getMarket as fetchMarket,
   getMarketsOnChain,
   getMarketOnChain,
-  getMarketsFromApi,
+  getLiveMarketsFromApi,
   getMarketFromApi,
 } from './modules/markets.js';
 
@@ -69,7 +69,7 @@ import {
  * });
  *
  * // Fetch markets
- * const markets = await client.getMarkets();
+ * const markets = await client.getLiveMarkets();
  *
  * // Place a limit order
  * const result = await client.createLimitOrder({
@@ -252,8 +252,8 @@ export class AlphaClient {
    *
    * @returns Array of live markets
    */
-  async getMarkets(): Promise<Market[]> {
-    return fetchMarkets(this.config);
+  async getLiveMarkets(): Promise<Market[]> {
+    return fetchLiveMarkets(this.config);
   }
 
   /**
@@ -299,8 +299,8 @@ export class AlphaClient {
    *
    * @returns Array of live markets from the API
    */
-  async getMarketsFromApi(): Promise<Market[]> {
-    return getMarketsFromApi(this.config);
+  async getLiveMarketsFromApi(): Promise<Market[]> {
+    return getLiveMarketsFromApi(this.config);
   }
 
   /**

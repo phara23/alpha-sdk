@@ -56,7 +56,7 @@ describe('Markets (REST API)', () => {
       return;
     }
 
-    const markets = await client.getMarketsFromApi();
+    const markets = await client.getLiveMarketsFromApi();
     expect(Array.isArray(markets)).toBe(true);
     expect(markets.length).toBeGreaterThan(0);
 
@@ -74,7 +74,7 @@ describe('Markets (REST API)', () => {
       return;
     }
 
-    const markets = await client.getMarketsFromApi();
+    const markets = await client.getLiveMarketsFromApi();
     if (markets.length === 0) return;
 
     const market = await client.getMarketFromApi(markets[0].id);
