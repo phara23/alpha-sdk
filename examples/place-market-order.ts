@@ -21,7 +21,6 @@ const main = async () => {
     activeAddress: account.addr,
     matcherAppId: 741347297,
     usdcAssetId: 31566704,
-    feeAddress: account.addr,
     apiKey: process.env.ALPHA_API_KEY!,
   });
 
