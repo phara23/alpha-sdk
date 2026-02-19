@@ -241,13 +241,10 @@ export class AlphaClient {
   }
 
   /**
-   * Gets all open orders for a wallet across every live market.
+   * Gets all open orders for a wallet across every live market using the Alpha REST API.
    *
-   * Discovers all live markets, then queries each market in parallel
-   * for orders belonging to the wallet.
-   *
-   * @param walletAddress - Optional wallet (defaults to activeAddress)
-   * @returns Array of open orders across all markets
+   * @param walletAddress - The wallet address
+   * @returns Array of open orders for the wallet
    */
   async getWalletOrdersFromApi(walletAddress: string): Promise<OpenOrder[]> {
     return getWalletOrdersFromApi(this.config, walletAddress);
