@@ -29,7 +29,8 @@ import {
   claim,
   getPositions,
 } from './modules/positions.js';
-import { getOrderbook, getOpenOrders } from './modules/orderbook.js';
+import { getOrderbook, getOpenOrders, getWalletOrdersFromApi } from './modules/orderbook.js';
+import { DEFAULT_API_BASE_URL } from './constants.js';
 import {
   getLiveMarkets as fetchLiveMarkets,
   getMarket as fetchMarket,
@@ -93,7 +94,7 @@ export class AlphaClient {
 
     this.config = {
       ...config,
-      apiBaseUrl: config.apiBaseUrl ?? 'https://partners.alphaarcade.com/api',
+      apiBaseUrl: config.apiBaseUrl ?? DEFAULT_API_BASE_URL,
     };
   }
 
@@ -237,6 +238,16 @@ export class AlphaClient {
    */
   async getOpenOrders(marketAppId: number, walletAddress?: string): Promise<OpenOrder[]> {
     return getOpenOrders(this.config, marketAppId, walletAddress);
+  }
+
+  /**
+   * Gets all open orders for a wallet across every live market using the Alpha REST API.
+   *
+   * @param walletAddress - The wallet address
+   * @returns Array of open orders for the wallet
+   */
+  async getWalletOrdersFromApi(walletAddress: string): Promise<OpenOrder[]> {
+    return getWalletOrdersFromApi(this.config, walletAddress);
   }
 
   // ============================================

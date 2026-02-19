@@ -1,11 +1,7 @@
 import algosdk from 'algosdk';
 import type { AlphaClientConfig, Market, MarketGlobalState } from '../types.js';
 import { decodeGlobalState } from '../utils/state.js';
-
-const DEFAULT_API_BASE_URL = 'https://partners.alphaarcade.com/api';
-
-/** The default Alpha Arcade mainnet market creator address */
-export const DEFAULT_MARKET_CREATOR_ADDRESS = '5P5Y6HTWUNG2E3VXBQDZN3ENZD3JPAIR5PKT3LOYJAPAUKOLFD6KANYTRY';
+import { DEFAULT_API_BASE_URL, DEFAULT_MARKET_CREATOR_ADDRESS } from '../constants.js';
 
 /** Normalize a timestamp to seconds. If > 10 billion, assume milliseconds and convert. */
 const toSeconds = (ts: number): number => ts > 10_000_000_000 ? Math.floor(ts / 1000) : ts;
