@@ -18,7 +18,6 @@ export type {
   ProposeMatchParams,
   CounterpartyMatch,
   CreateOrderResult,
-  CreateMarketOrderResult,
   CancelOrderResult,
   ProposeMatchResult,
   // Orderbook

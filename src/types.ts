@@ -181,14 +181,10 @@ export type CreateOrderResult = {
   txIds: string[];
   /** Confirmed round number */
   confirmedRound: number;
-};
-
-/** Result of creating a market order (includes match info) */
-export type CreateMarketOrderResult = CreateOrderResult & {
   /** Total quantity that was matched */
-  matchedQuantity: number;
+  matchedQuantity?: number;
   /** Weighted average fill price in microunits (accounts for complementary matching) */
-  matchedPrice: number;
+  matchedPrice?: number;
 };
 
 /** Result of cancelling an order */

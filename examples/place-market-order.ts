@@ -52,7 +52,7 @@ const main = async () => {
   });
 
   console.log(`Order created! Escrow: ${result.escrowAppId}`);
-  console.log(`Matched quantity: ${result.matchedQuantity / 1e6} shares`);
+  console.log(`Matched quantity: ${(result.matchedQuantity ?? 0) / 1e6} shares`);
 };
 
 main().catch(console.error);

@@ -8,7 +8,6 @@ import type {
   MergeSharesParams,
   ClaimParams,
   CreateOrderResult,
-  CreateMarketOrderResult,
   CancelOrderResult,
   ProposeMatchResult,
   SplitMergeResult,
@@ -125,7 +124,7 @@ export class AlphaClient {
    * @param params - Order parameters (marketAppId, position, price, quantity, isBuying, slippage)
    * @returns The created escrow app ID, matched quantity, and transaction info
    */
-  async createMarketOrder(params: CreateMarketOrderParams): Promise<CreateMarketOrderResult> {
+  async createMarketOrder(params: CreateMarketOrderParams): Promise<CreateOrderResult> {
     return createMarketOrder(this.config, params);
   }
 

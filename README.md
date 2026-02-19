@@ -91,7 +91,7 @@ const result = await client.createLimitOrder({
   quantity: 2_000_000,  // 2 shares in microunits
   isBuying: true,
 });
-// result: { escrowAppId, txIds, confirmedRound }
+// result: { escrowAppId, txIds, confirmedRound, matchedQuantity?, matchedPrice? }
 ```
 
 #### `createMarketOrder(params)`
@@ -107,7 +107,7 @@ const result = await client.createMarketOrder({
   isBuying: true,
   slippage: 50_000,     // $0.05 slippage tolerance
 });
-// result: { escrowAppId, matchedQuantity, txIds, confirmedRound }
+// result: { escrowAppId, txIds, confirmedRound, matchedQuantity, matchedPrice }
 ```
 
 #### `cancelOrder(params)`

@@ -10,7 +10,6 @@ import type {
   CancelOrderParams,
   ProposeMatchParams,
   CreateOrderResult,
-  CreateMarketOrderResult,
   CancelOrderResult,
   ProposeMatchResult,
   CounterpartyMatch,
@@ -73,7 +72,29 @@ export const createLimitOrder = async (
   config: AlphaClientConfig,
   params: CreateLimitOrderParams,
 ): Promise<CreateOrderResult> => {
-  return createOrder(config, { ...params, slippage: 0, matchingOrders: [] });
+
+  const orderbook = await getOrderbook(config, params.marketAppId);
+  const matchingOrders = calculateMatchingOrders(
+    orderbook,
+    params.isBuying,
+    params.position === 1,
+    params.quantity,
+    params.price,
+    0
+  );
+
+  const totalMatchedQuantity = matchingOrders.reduce((sum, o) => sum + o.quantity, 0);
+
+  // Compute volume-weighted average fill price from matched counterparty prices
+  const matchedPrice = totalMatchedQuantity > 0
+    ? Math.round(
+        matchingOrders.reduce((sum, o) => sum + (o.price ?? params.price) * o.quantity, 0) / totalMatchedQuantity,
+      )
+    : params.price;
+
+  const result = await createOrder(config, { ...params, slippage: 0, matchingOrders: matchingOrders });
+
+  return { ...result, matchedQuantity: totalMatchedQuantity, matchedPrice };
 };
 
 /**
@@ -89,7 +110,7 @@ export const createLimitOrder = async (
 export const createMarketOrder = async (
   config: AlphaClientConfig,
   params: CreateMarketOrderParams,
-): Promise<CreateMarketOrderResult> => {
+): Promise<CreateOrderResult> => {
   // Auto-fetch matching orders if not provided
   let matchingOrders = params.matchingOrders;
   if (!matchingOrders) {
