@@ -1,6 +1,8 @@
 import algosdk from 'algosdk';
 import type { AlphaClientConfig, Orderbook, OrderbookEntry, EscrowGlobalState, OpenOrder } from '../types.js';
 import { decodeGlobalState } from '../utils/state.js';
+import { DEFAULT_API_BASE_URL } from '../constants.js';
+import { getLiveMarkets } from './markets.js';
 
 type EscrowApp = {
   appId: number;
@@ -167,4 +169,68 @@ export const getOpenOrders = async (
       slippage: o.globalState.slippage ?? 0,
       owner: o.globalState.owner ?? '',
     }));
+};
+
+// ============================================
+// API-based order fetching (requires API key)
+// ============================================
+
+const normalizeApiOrder = (raw: any): OpenOrder => ({
+  escrowAppId: Number(raw.escrowAppId ?? raw.orderId),
+  marketAppId: Number(raw.marketAppId),
+  position: (raw.orderPosition ?? 0) as 0 | 1,
+  side: raw.orderSide === 'BUY' ? 1 : 0,
+  price: raw.orderPrice ?? 0,
+  quantity: raw.orderQuantity ?? 0,
+  quantityFilled: raw.orderQuantityFilled ?? 0,
+  slippage: raw.slippage ?? 0,
+  owner: raw.senderWallet ?? '',
+});
+
+/**
+ * Fetches all open orders for a wallet from the Alpha REST API.
+ *
+ * Paginates automatically through all results. Requires an API key.
+ *
+ * @param config - Alpha client config
+ * @returns Array of open orders
+ */
+export const getWalletOrdersFromApi = async (config: AlphaClientConfig, walletAddress: string): Promise<OpenOrder[]> => {
+  if (!config.apiKey) {
+    throw new Error('apiKey is required for API-based market fetching.');
+  }
+
+  const baseUrl = config.apiBaseUrl ?? DEFAULT_API_BASE_URL;
+  const allOrders: OpenOrder[] = [];
+  let cursor: string | undefined;
+  let hasMore = true;
+
+  while (hasMore) {
+    const params = new URLSearchParams({ wallet: walletAddress, limit: '300' });
+    if (cursor) {
+      params.set('cursor', cursor);
+    }
+
+    const url = `${baseUrl}/get-wallet-orders?${params.toString()}`;
+    const response = await fetch(url, { headers: { 'x-api-key': config.apiKey } });
+
+    if (!response.ok) {
+      throw new Error(`Alpha API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (Array.isArray(data)) {
+      allOrders.push(...data.map(normalizeApiOrder));
+      hasMore = false;
+    } else if (data.orders) {
+      allOrders.push(...data.orders.map(normalizeApiOrder));
+      cursor = data.nextCursor ?? undefined;
+      hasMore = data.hasMore === true && !!cursor;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allOrders;
 };
