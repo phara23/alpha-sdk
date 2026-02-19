@@ -21,7 +21,6 @@ const main = async () => {
     activeAddress: account.addr,
     matcherAppId: 741347297,
     usdcAssetId: 31566704,
-    feeAddress: account.addr,
     apiKey: process.env.ALPHA_API_KEY!,
   });
 
@@ -52,7 +51,7 @@ const main = async () => {
   });
 
   console.log(`Order created! Escrow: ${result.escrowAppId}`);
-  console.log(`Matched quantity: ${result.matchedQuantity / 1e6} shares`);
+  console.log(`Matched quantity: ${(result.matchedQuantity ?? 0) / 1e6} shares`);
 };
 
 main().catch(console.error);
