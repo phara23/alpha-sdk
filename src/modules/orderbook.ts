@@ -197,7 +197,7 @@ const normalizeApiOrder = (raw: any): OpenOrder => ({
  */
 export const getWalletOrdersFromApi = async (config: AlphaClientConfig, walletAddress: string): Promise<OpenOrder[]> => {
   if (!config.apiKey) {
-    throw new Error('apiKey is required for API-based market fetching.');
+    throw new Error('apiKey is required for API-based market fetching. Retrieve an API key from the Alpha Arcade platform via the Account page and pass it to the client.');
   }
 
   const baseUrl = config.apiBaseUrl ?? DEFAULT_API_BASE_URL;

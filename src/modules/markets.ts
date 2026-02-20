@@ -195,7 +195,7 @@ export const getMarketOnChain = async (
  */
 export const getLiveMarketsFromApi = async (config: AlphaClientConfig): Promise<Market[]> => {
   if (!config.apiKey) {
-    throw new Error('apiKey is required for API-based market fetching. Use getMarketsOnChain() instead, or pass an apiKey.');
+    throw new Error('apiKey is required for API-based market fetching. Use getMarketsOnChain() instead, or retrieve an API key from the Alpha Arcade platform via the Account page and pass it to the client.');
   }
 
   const baseUrl = config.apiBaseUrl ?? DEFAULT_API_BASE_URL;
@@ -252,7 +252,7 @@ export const getMarketFromApi = async (
   marketId: string,
 ): Promise<Market | null> => {
   if (!config.apiKey) {
-    throw new Error('apiKey is required for API-based market fetching. Use getMarketOnChain() instead, or pass an apiKey.');
+    throw new Error('apiKey is required for API-based market fetching. Use getMarketOnChain() instead, or retrieve an API key from the Alpha Arcade platform via the Account page and pass it to the client.');
   }
 
   const baseUrl = config.apiBaseUrl ?? DEFAULT_API_BASE_URL;
@@ -272,6 +272,24 @@ export const getMarketFromApi = async (
   }
   return market;
 };
+
+/**
+ * Fetches the reward markets from the Alpha REST API.
+ * Requires an API key.
+ *
+ * @param config - Alpha client config
+ * @returns The reward markets
+ */
+export const getRewardMarkets = async (
+  config: AlphaClientConfig,
+): Promise<Market[]> => {
+  if (!config.apiKey) {
+    throw new Error('apiKey is required for API-based market fetching. Retrieve an API key from the Alpha Arcade platform via the Account page and pass it to the client.');
+  }
+
+  const markets = await getLiveMarketsFromApi(config);
+  return markets.filter((m: Market) => (m as any).totalRewards && (m as any).totalRewards > 0);
+  };
 
 // ============================================
 // Smart defaults (on-chain first, API if key provided)
