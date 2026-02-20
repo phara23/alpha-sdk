@@ -55,6 +55,13 @@ export type Market = {
   featured?: boolean;
   options?: MarketOption[];
   feeBase?: number;
+  /** Liquidty Rewards Info */
+  totalRewards?: number;
+  rewardsPaidOut?: number;
+  rewardsSpreadDistance?: number;
+  rewardsMinContracts?: number;
+  lastRewardAmount?: number;
+  lastRewardTs?: number;
   /** Data source: 'onchain' or 'api' */
   source?: 'onchain' | 'api';
   [key: string]: unknown;

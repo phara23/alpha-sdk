@@ -12,6 +12,24 @@ npm install @alpha-arcade/sdk algosdk @algorandfoundation/algokit-utils
 
 `algosdk` and `@algorandfoundation/algokit-utils` are peer dependencies.
 
+## Getting an API key
+
+An API key is **optional**. Without it, you can still fetch markets on-chain, place orders, and use most SDK features. With an API key, you get richer market data, liquidity rewards information, and wallet order lookups, and more.
+
+To get an API key:
+
+1. Go to [alphaarcade.com](https://alphaarcade.com) and **sign up** with your email or Google account.
+2. Open the **Account** page 
+3. Open the **Partners** tab.
+4. Click **Create API key** and copy the key.
+5. Add it to your environment (e.g. a `.env` file in the project root):
+
+```bash
+ALPHA_API_KEY=your_api_key_here
+```
+
+Then pass it when creating the client: `apiKey: process.env.ALPHA_API_KEY`.
+
 ## Quick Start
 
 ```typescript
@@ -53,6 +71,21 @@ const result = await client.createLimitOrder({
 console.log(`Order created! Escrow app ID: ${result.escrowAppId}`);
 ```
 
+## Examples
+
+The repo includes runnable examples (use `npx tsx examples/<script>.ts`). Scripts that call the API (e.g. `get-orders.ts`, `get-reward-markets.ts`) need `ALPHA_API_KEY` in your `.env` — see [Getting an API key](#getting-an-api-key). Trading examples also need `TEST_MNEMONIC`.
+
+| Script | Description |
+|--------|-------------|
+| `get-orders.ts` | Fetch all open orders for a wallet via the API (`getWalletOrdersFromApi`) |
+| `get-reward-markets.ts` | Fetch reward markets and show liquidity reward info (`getRewardMarkets`) |
+| `get-positions.ts` | List token positions across markets (`getPositions`) |
+| `place-limit-order.ts` | Place a limit order |
+| `place-market-order.ts` | Place a market order |
+| `cancel-order.ts` | Cancel an open order |
+| `split-merge.ts` | Split USDC into YES/NO and merge back |
+| `simple-trading-bot.ts` | Example bot that scans markets and places market orders |
+
 ## API Reference
 
 ### AlphaClient
@@ -71,8 +104,8 @@ new AlphaClient(config: AlphaClientConfig)
 | `activeAddress` | `string` | Yes | Your Algorand address |
 | `matcherAppId` | `number` | Yes | Matcher contract app ID (mainnet: `3078581851`) |
 | `usdcAssetId` | `number` | Yes | USDC ASA ID (mainnet: `31566704`) |
-| `apiKey` | `string` | No | Alpha partners API key. If provided, `getLiveMarkets()` uses the API for richer data (images, categories, volume). If omitted, markets are discovered on-chain. |
-| `apiBaseUrl` | `string` | No | API base URL (default: `https://partners.alphaarcade.com/api`) |
+| `apiKey` | `string` | No | Alpha API key. If provided, `getLiveMarkets()` and related API methods use the platform for richer data (images, categories, volume, reward markets, wallet orders). If omitted, markets are discovered on-chain. |
+| `apiBaseUrl` | `string` | No | API base URL (default: `https://platform.alphaarcade.com/api`) |
 | `marketCreatorAddress` | `string` | No | Market creator address for on-chain discovery (defaults to Alpha Arcade mainnet) |
 
 ---
@@ -211,7 +244,7 @@ if (book.yes.bids.length > 0) {
 
 #### `getOpenOrders(marketAppId, walletAddress?)`
 
-Gets open orders for a wallet on a specific market.
+Gets open orders for a wallet on a specific market (from on-chain data).
 
 ```typescript
 const orders = await client.getOpenOrders(123456789);
@@ -219,6 +252,17 @@ for (const order of orders) {
   const side = order.side === 1 ? 'BUY' : 'SELL';
   const pos = order.position === 1 ? 'YES' : 'NO';
   console.log(`${side} ${pos} @ $${order.price / 1e6} - ${order.quantity / 1e6} shares`);
+}
+```
+
+#### `getWalletOrdersFromApi(walletAddress)`
+
+Gets all open orders for a wallet across every live market via the Alpha REST API. Requires `apiKey`. Paginates automatically.
+
+```typescript
+const orders = await client.getWalletOrdersFromApi('ALGO_ADDRESS...');
+for (const order of orders) {
+  console.log(`Market ${order.marketAppId} | Escrow ${order.escrowAppId} | ${order.quantityFilled / 1e6} filled`);
 }
 ```
 
@@ -257,6 +301,17 @@ Always uses the REST API. Requires `apiKey`. Returns richer data: images, catego
 ```typescript
 const markets = await client.getLiveMarketsFromApi();
 const market = await client.getMarketFromApi('uuid-here');
+```
+
+#### `getRewardMarkets()`
+
+Fetches markets that have liquidity rewards from the Alpha REST API. Requires `apiKey`. Returns the same `Market[]` shape with reward fields populated: `totalRewards`, `rewardsPaidOut`, `rewardsSpreadDistance`, `rewardsMinContracts`, `lastRewardAmount`, `lastRewardTs`.
+
+```typescript
+const rewardMarkets = await client.getRewardMarkets();
+for (const m of rewardMarkets) {
+  console.log(`${m.title}: $${(m.totalRewards ?? 0) / 1e6} total rewards`);
+}
 ```
 
 ---
