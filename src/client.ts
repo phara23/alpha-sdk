@@ -38,6 +38,7 @@ import {
   getMarketOnChain,
   getLiveMarketsFromApi,
   getMarketFromApi,
+  getRewardMarkets,
 } from './modules/markets.js';
 
 /**
@@ -313,6 +314,14 @@ export class AlphaClient {
     return getLiveMarketsFromApi(this.config);
   }
 
+  /**
+   * Fetches the reward markets from the Alpha REST API (requires API key).
+   *
+   * @returns Array of reward markets
+   */
+  async getRewardMarkets(): Promise<Market[]> {
+    return getRewardMarkets(this.config);
+  }
   /**
    * Fetches a single market by ID from the Alpha REST API (requires API key).
    *
