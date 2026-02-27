@@ -1,4 +1,5 @@
-import algosdk, { AtomicTransactionComposer, getApplicationAddress } from 'algosdk';
+import * as algosdk from 'algosdk';
+import { AtomicTransactionComposer, getApplicationAddress } from 'algosdk';
 import * as algokit from '@algorandfoundation/algokit-utils';
 import type { TransactionSignerAccount } from '@algorandfoundation/algokit-utils/types/account';
 import { MarketAppClient } from '../contracts/market_app.js';
@@ -38,12 +39,13 @@ export const splitShares = async (
   const yesAssetId = globalState.yes_asset_id;
   const noAssetId = globalState.no_asset_id;
 
-  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress };
+  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress } as any;
   const marketClient = new MarketAppClient(
     { resolveBy: 'id', id: marketAppId, sender: signerAccount },
     algodClient,
   );
-  const marketAddress = getApplicationAddress(marketAppId);
+  // v3: getApplicationAddress returns Address object, need .toString()
+  const marketAddress = getApplicationAddress(marketAppId).toString();
 
   const atc = new AtomicTransactionComposer();
   let optInCosts = 0;
@@ -96,7 +98,7 @@ export const splitShares = async (
   return {
     success: true,
     txIds: result.txIDs,
-    confirmedRound: result.confirmedRound,
+    confirmedRound: Number(result.confirmedRound),
   };
 };
 
@@ -125,12 +127,12 @@ export const mergeShares = async (
   const yesAssetId = globalState.yes_asset_id;
   const noAssetId = globalState.no_asset_id;
 
-  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress };
+  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress } as any;
   const marketClient = new MarketAppClient(
     { resolveBy: 'id', id: marketAppId, sender: signerAccount },
     algodClient,
   );
-  const marketAddress = getApplicationAddress(marketAppId);
+  const marketAddress = getApplicationAddress(marketAppId).toString();
 
   const atc = new AtomicTransactionComposer();
   let optInCosts = 0;
@@ -179,7 +181,7 @@ export const mergeShares = async (
   return {
     success: true,
     txIds: result.txIDs,
-    confirmedRound: result.confirmedRound,
+    confirmedRound: Number(result.confirmedRound),
   };
 };
 
@@ -206,19 +208,20 @@ export const claim = async (
   const { algodClient, signer, activeAddress, usdcAssetId } = config;
   const { marketAppId, assetId } = params;
 
-  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress };
+  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress } as any;
   const marketClient = new MarketAppClient(
     { resolveBy: 'id', id: marketAppId, sender: signerAccount },
     algodClient,
   );
-  const marketAddress = getApplicationAddress(marketAppId);
+  const marketAddress = getApplicationAddress(marketAppId).toString();
 
   // Get token balance
   let tokenBalance = params.amount;
   if (!tokenBalance) {
-    const accountInfo = await algodClient.accountInformation(activeAddress).do();
-    const assets = accountInfo.assets || accountInfo['assets'] || [];
-    const asset = assets.find((a: any) => (a['asset-id'] ?? a.assetId) === assetId);
+    const accountInfo: any = await algodClient.accountInformation(activeAddress).do();
+    const assets = accountInfo.assets || [];
+    // v3: a.assetId (bigint), v2: a['asset-id'] (number)
+    const asset = assets.find((a: any) => Number(a.assetId ?? a['asset-id']) === assetId);
     tokenBalance = asset ? Number(asset.amount) : 0;
   }
   if (tokenBalance <= 0) {
@@ -246,9 +249,10 @@ export const claim = async (
 
   // Opt-out: close remainder to market app
   const sp = await algodClient.getTransactionParams().do();
+  // v3: parameter names changed from->sender, to->receiver
   const closeOutTxn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-    from: activeAddress,
-    to: marketAddress,
+    sender: activeAddress,
+    receiver: marketAddress,
     amount: 0,
     assetIndex: assetId,
     closeRemainderTo: marketAddress,
@@ -261,7 +265,7 @@ export const claim = async (
   return {
     success: true,
     txIds: result.txIDs,
-    confirmedRound: result.confirmedRound,
+    confirmedRound: Number(result.confirmedRound),
     amountClaimed: tokenBalance,
   };
 };
@@ -287,10 +291,11 @@ export const getPositions = async (
   const address = walletAddress ?? config.activeAddress;
 
   // Get all ASA holdings
-  const accountInfo = await algodClient.accountInformation(address).do();
-  const assets = accountInfo.assets || accountInfo['assets'] || [];
+  const accountInfo: any = await algodClient.accountInformation(address).do();
+  const assets = accountInfo.assets || [];
 
   // Filter to non-zero holdings
+  // v3: a.assetId (bigint), a.amount (bigint); v2: a['asset-id'] (number), a.amount (number)
   const nonZeroAssets = assets.filter((a: any) => Number(a.amount) > 0);
   if (nonZeroAssets.length === 0) return [];
 
@@ -302,13 +307,16 @@ export const getPositions = async (
   const positions = new Map<number, WalletPosition>();
 
   for (const asset of nonZeroAssets) {
-    const assetId = asset['asset-id'] ?? asset.assetId;
+    // v3: asset.assetId (bigint), v2: asset['asset-id'] (number)
+    const assetId = Number(asset.assetId ?? asset['asset-id']);
     const amount = Number(asset.amount);
 
     try {
-      const assetInfo = await indexerClient.lookupAssetByID(assetId).do();
+      const assetInfo: any = await indexerClient.lookupAssetByID(assetId).do();
+      // v3: assetInfo.asset?.params?.name, assetInfo.asset?.params?.unitName
+      // v2: assetInfo.asset?.params?.name, assetInfo.asset?.params?.['unit-name']
       const assetName: string = assetInfo.asset?.params?.name ?? '';
-      const unitName: string = assetInfo.asset?.params?.['unit-name'] ?? '';
+      const unitName: string = assetInfo.asset?.params?.unitName ?? assetInfo.asset?.params?.['unit-name'] ?? '';
 
       // Only process Alpha Market outcome tokens
       if (!unitName.startsWith('ALPHA-')) continue;
@@ -332,8 +340,9 @@ export const getPositions = async (
       } else {
         // First time seeing this market -- fetch global state for both asset IDs and title
         try {
-          const appInfo = await indexerClient.lookupApplications(marketAppId).do();
-          const rawState = appInfo.application?.params?.['global-state'];
+          const appInfo: any = await indexerClient.lookupApplications(marketAppId).do();
+          // v3: appInfo.application?.params?.globalState, v2: ['global-state']
+          const rawState = appInfo.application?.params?.globalState ?? appInfo.application?.params?.['global-state'];
           if (!rawState) continue;
 
           let yesAssetIdOnChain = 0;
@@ -341,10 +350,22 @@ export const getPositions = async (
           let marketTitle = '';
 
           for (const item of rawState) {
-            const key = Buffer.from(item.key, 'base64').toString();
+            const rawKey = item.key;
+            const key = typeof rawKey === 'string'
+              ? Buffer.from(rawKey, 'base64').toString()
+              : rawKey instanceof Uint8Array
+                ? Buffer.from(rawKey).toString()
+                : String(rawKey);
             if (key === 'yes_asset_id') yesAssetIdOnChain = Number(item.value.uint);
             if (key === 'no_asset_id') noAssetIdOnChain = Number(item.value.uint);
-            if (key === 'title') marketTitle = Buffer.from(item.value.bytes, 'base64').toString();
+            if (key === 'title') {
+              const rawBytes = item.value.bytes;
+              if (typeof rawBytes === 'string') {
+                marketTitle = Buffer.from(rawBytes, 'base64').toString();
+              } else if (rawBytes instanceof Uint8Array) {
+                marketTitle = Buffer.from(rawBytes).toString();
+              }
+            }
           }
 
           if (yesAssetIdOnChain === 0 && noAssetIdOnChain === 0) continue;
