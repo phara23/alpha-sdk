@@ -1,4 +1,4 @@
-import algosdk from 'algosdk';
+import * as algosdk from 'algosdk';
 import type { AlphaClientConfig, Market, MarketGlobalState } from '../types.js';
 import { decodeGlobalState } from '../utils/state.js';
 import { DEFAULT_API_BASE_URL, DEFAULT_MARKET_CREATOR_ADDRESS } from '../constants.js';
@@ -93,14 +93,16 @@ export const getMarketsOnChain = async (
     if (nextToken) {
       query = query.nextToken(nextToken);
     }
-    const response = await query.do();
+    const response: any = await query.do();
 
     if (response.applications?.length) {
       allApps.push(...response.applications);
     }
 
-    if (response['next-token']) {
-      nextToken = response['next-token'];
+    // v3: response.nextToken, v2 fallback: response['next-token']
+    const token = response.nextToken ?? response['next-token'];
+    if (token) {
+      nextToken = token;
     } else {
       hasMore = false;
     }
@@ -111,7 +113,8 @@ export const getMarketsOnChain = async (
   for (const app of allApps) {
     if (app.deleted) continue;
 
-    const rawState = app.params?.['global-state'];
+    // v3: app.params?.globalState, v2 fallback: app.params?.['global-state']
+    const rawState = app.params?.globalState ?? app.params?.['global-state'];
     if (!rawState) continue;
 
     const state = decodeGlobalState(rawState) as MarketGlobalState;
@@ -159,8 +162,9 @@ export const getMarketOnChain = async (
 ): Promise<Market | null> => {
   try {
     const appId = typeof marketAppId === 'string' ? Number(marketAppId) : marketAppId;
-    const appInfo = await config.algodClient.getApplicationByID(appId).do();
-    const rawState = appInfo.params?.['global-state'] ?? appInfo['params']?.['global-state'] ?? [];
+    const appInfo: any = await config.algodClient.getApplicationByID(appId).do();
+    // v3: appInfo.params.globalState, v2 fallback: appInfo.params?.['global-state']
+    const rawState = appInfo.params?.globalState ?? appInfo.params?.['global-state'] ?? [];
     const state = decodeGlobalState(rawState) as MarketGlobalState;
 
     return {

@@ -1,4 +1,4 @@
-import algosdk from 'algosdk';
+import * as algosdk from 'algosdk';
 import type { AlphaClientConfig, Orderbook, OrderbookEntry, EscrowGlobalState, OpenOrder } from '../types.js';
 import { decodeGlobalState } from '../utils/state.js';
 import { DEFAULT_API_BASE_URL } from '../constants.js';
@@ -26,14 +26,16 @@ const getAllCreatedApplications = async (
     if (nextToken) {
       query = query.nextToken(nextToken);
     }
-    const response = await query.do();
+    const response: any = await query.do();
 
     if (response.applications?.length) {
       applications = [...applications, ...response.applications];
     }
 
-    if (response['next-token']) {
-      nextToken = response['next-token'];
+    // v3: response.nextToken, v2 fallback: response['next-token']
+    const token = response.nextToken ?? response['next-token'];
+    if (token) {
+      nextToken = token;
     } else {
       hasMore = false;
     }
@@ -53,9 +55,10 @@ const fetchApplicationsGlobalState = async (
     applications.map(async (app) => {
       const appId = app.id;
       try {
-        const appInfo = await indexerClient.lookupApplications(appId).do();
+        const appInfo: any = await indexerClient.lookupApplications(appId).do();
         const globalState: EscrowGlobalState = {};
-        const rawGlobalState = appInfo.application?.params?.['global-state'];
+        // v3: appInfo.application?.params?.globalState, v2: ['global-state']
+        const rawGlobalState = appInfo.application?.params?.globalState ?? appInfo.application?.params?.['global-state'];
 
         if (rawGlobalState) {
           const decoded = decodeGlobalState(rawGlobalState);
@@ -98,7 +101,8 @@ export const getOrderbook = async (
   config: AlphaClientConfig,
   marketAppId: number,
 ): Promise<Orderbook> => {
-  const appAddress = algosdk.getApplicationAddress(marketAppId);
+  // v3: getApplicationAddress returns Address object, need .toString()
+  const appAddress = algosdk.getApplicationAddress(marketAppId).toString();
   const applications = await getAllCreatedApplications(config.indexerClient, appAddress);
   const appsWithState = await fetchApplicationsGlobalState(config.indexerClient, applications);
 
@@ -148,7 +152,8 @@ export const getOpenOrders = async (
   walletAddress?: string,
 ): Promise<OpenOrder[]> => {
   const owner = walletAddress ?? config.activeAddress;
-  const appAddress = algosdk.getApplicationAddress(marketAppId);
+  // v3: getApplicationAddress returns Address object, need .toString()
+  const appAddress = algosdk.getApplicationAddress(marketAppId).toString();
   const applications = await getAllCreatedApplications(config.indexerClient, appAddress);
   const appsWithState = await fetchApplicationsGlobalState(config.indexerClient, applications);
 

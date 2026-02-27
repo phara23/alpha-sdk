@@ -1,8 +1,9 @@
-import algosdk from 'algosdk';
+import * as algosdk from 'algosdk';
 import type { EscrowGlobalState, MarketGlobalState } from '../types.js';
 
 /**
  * Decodes raw Algorand global state array into a key-value object.
+ * Supports both v2 (kebab-case) and v3 (camelCase) response shapes.
  *
  * @param rawState - The raw global-state array from algod/indexer
  * @returns Decoded key-value object
@@ -11,32 +12,52 @@ export const decodeGlobalState = (rawState: any[]): Record<string, any> => {
   const state: Record<string, any> = {};
 
   for (const item of rawState) {
-    const key = Buffer.from(item.key, 'base64').toString();
+    const rawKey = item.key;
+    const key = typeof rawKey === 'string'
+      ? Buffer.from(rawKey, 'base64').toString()
+      : rawKey instanceof Uint8Array
+        ? Buffer.from(rawKey).toString()
+        : String(rawKey);
 
-    if (item.value.type === 1) {
+    const val = item.value;
+    const type = val.type;
+
+    if (type === 1) {
       // Bytes value
       if (key === 'owner' || key === 'oracle_address' || key === 'fee_address' ||
         key === 'market_friend_addr' || key === 'escrow_cancel_address') {
         try {
-          const addressBytes = Buffer.from(item.value.bytes, 'base64');
+          const rawBytes = val.bytes;
+          const addressBytes = typeof rawBytes === 'string'
+            ? Buffer.from(rawBytes, 'base64')
+            : rawBytes instanceof Uint8Array
+              ? rawBytes
+              : Buffer.from(String(rawBytes), 'base64');
           if (addressBytes.length === 32) {
-            state[key] = algosdk.encodeAddress(addressBytes);
+            state[key] = algosdk.encodeAddress(new Uint8Array(addressBytes));
           } else {
-            state[key] = item.value.bytes;
+            state[key] = val.bytes;
           }
         } catch {
-          state[key] = item.value.bytes;
+          state[key] = val.bytes;
         }
       } else {
         try {
-          state[key] = Buffer.from(item.value.bytes, 'base64').toString();
+          const rawBytes = val.bytes;
+          if (typeof rawBytes === 'string') {
+            state[key] = Buffer.from(rawBytes, 'base64').toString();
+          } else if (rawBytes instanceof Uint8Array) {
+            state[key] = Buffer.from(rawBytes).toString();
+          } else {
+            state[key] = rawBytes;
+          }
         } catch {
-          state[key] = item.value.bytes;
+          state[key] = val.bytes;
         }
       }
     } else {
       // Uint value
-      state[key] = Number(item.value.uint);
+      state[key] = Number(val.uint);
     }
   }
 
@@ -54,8 +75,9 @@ export const getMarketGlobalState = async (
   algodClient: algosdk.Algodv2,
   marketAppId: number,
 ): Promise<MarketGlobalState> => {
-  const appInfo = await algodClient.getApplicationByID(marketAppId).do();
-  const rawState = appInfo.params?.['global-state'] ?? appInfo['params']?.['global-state'] ?? [];
+  const appInfo: any = await algodClient.getApplicationByID(marketAppId).do();
+  // v3: appInfo.params.globalState, v2 fallback: appInfo.params?.['global-state']
+  const rawState = appInfo.params?.globalState ?? appInfo.params?.['global-state'] ?? [];
   return decodeGlobalState(rawState) as MarketGlobalState;
 };
 
@@ -70,8 +92,9 @@ export const getEscrowGlobalState = async (
   indexerClient: algosdk.Indexer,
   escrowAppId: number,
 ): Promise<EscrowGlobalState> => {
-  const appInfo = await indexerClient.lookupApplications(escrowAppId).do();
-  const rawState = appInfo.application?.params?.['global-state'] ?? [];
+  const appInfo: any = await indexerClient.lookupApplications(escrowAppId).do();
+  // v3: appInfo.application?.params?.globalState, v2 fallback: ['global-state']
+  const rawState = appInfo.application?.params?.globalState ?? appInfo.application?.params?.['global-state'] ?? [];
   return decodeGlobalState(rawState) as EscrowGlobalState;
 };
 
@@ -89,9 +112,10 @@ export const checkAssetOptIn = async (
   assetId: number,
 ): Promise<boolean> => {
   try {
-    const accountInfo = await algodClient.accountInformation(address).do();
-    const assets = accountInfo.assets || accountInfo['assets'] || [];
-    return assets.some((a: any) => (a['asset-id'] ?? a.assetId) === assetId);
+    const accountInfo: any = await algodClient.accountInformation(address).do();
+    const assets = accountInfo.assets || [];
+    // v3: a.assetId (bigint), v2: a['asset-id'] (number)
+    return assets.some((a: any) => Number(a.assetId ?? a['asset-id']) === assetId);
   } catch {
     return false;
   }

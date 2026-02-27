@@ -1,4 +1,5 @@
-import algosdk, { AtomicTransactionComposer, getApplicationAddress } from 'algosdk';
+import * as algosdk from 'algosdk';
+import { AtomicTransactionComposer, getApplicationAddress } from 'algosdk';
 import * as algokit from '@algorandfoundation/algokit-utils';
 import type { TransactionSignerAccount } from '@algorandfoundation/algokit-utils/types/account';
 import { MarketAppClient } from '../contracts/market_app.js';
@@ -30,9 +31,13 @@ const extractEscrowAppId = async (
 ): Promise<number> => {
   // Try algod pending info first
   try {
-    const pendingInfo = await algodClient.pendingTransactionInformation(targetTxId).do();
-    if (pendingInfo?.['inner-txns']?.[0]?.['created-application-index']) {
-      return pendingInfo['inner-txns'][0]['created-application-index'];
+    const pendingInfo: any = await algodClient.pendingTransactionInformation(targetTxId).do();
+    // v3: pendingInfo.innerTxns?.[0]?.applicationIndex (bigint)
+    // v2 fallback: pendingInfo['inner-txns']?.[0]?.['created-application-index']
+    const innerTxns = pendingInfo.innerTxns ?? pendingInfo['inner-txns'];
+    const createdAppId = innerTxns?.[0]?.applicationIndex ?? innerTxns?.[0]?.['created-application-index'];
+    if (createdAppId) {
+      return Number(createdAppId);
     }
   } catch {
     // Fall through to indexer
@@ -43,9 +48,14 @@ const extractEscrowAppId = async (
   for (const delayMs of backoffs) {
     try {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
-      const txnLookup = await indexerClient.lookupTransactionByID(targetTxId).do();
-      if (txnLookup?.transaction?.['inner-txns']?.[0]?.['created-application-index']) {
-        return txnLookup.transaction['inner-txns'][0]['created-application-index'];
+      const txnLookup: any = await indexerClient.lookupTransactionByID(targetTxId).do();
+      // v3: txnLookup.transaction?.innerTxns?.[0]?.createdApplicationIndex (bigint)
+      // v2 fallback: txnLookup.transaction?.['inner-txns']?.[0]?.['created-application-index']
+      const txn = txnLookup.transaction;
+      const innerTxns = txn?.innerTxns ?? txn?.['inner-txns'];
+      const createdAppId = innerTxns?.[0]?.createdApplicationIndex ?? innerTxns?.[0]?.['created-application-index'];
+      if (createdAppId) {
+        return Number(createdAppId);
       }
     } catch {
       // Retry on 404/lag
@@ -159,7 +169,7 @@ const createOrder = async (
   // Always use the market's on-chain fee address (must be in accounts array for matching)
   const marketFeeAddress = globalState.fee_address;
 
-  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress };
+  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress } as any;
   const marketClient = new MarketAppClient(
     { resolveBy: 'id', id: marketAppId, sender: signerAccount },
     algodClient,
@@ -174,7 +184,8 @@ const createOrder = async (
     fee = calculateFee(quantity, price + slippage, feeBase);
   }
 
-  const marketAddress = getApplicationAddress(marketAppId);
+  // v3: getApplicationAddress returns Address object, need .toString() for string contexts
+  const marketAddress = getApplicationAddress(marketAppId).toString();
   const atc = new AtomicTransactionComposer();
   let createEscrowTxnIndex = 0;
 
@@ -237,7 +248,7 @@ const createOrder = async (
     const payCounterPartyTxn = await algokit.transferAlgos(
       {
         from: signerAccount,
-        to: getApplicationAddress(matchingOrder.escrowAppId),
+        to: getApplicationAddress(matchingOrder.escrowAppId).toString(),
         amount: algokit.microAlgos(1000 * (isBuying ? 1 : 2)),
         skipSending: true,
       },
@@ -276,7 +287,7 @@ const createOrder = async (
   return {
     escrowAppId,
     txIds: result.txIDs,
-    confirmedRound: result.confirmedRound,
+    confirmedRound: Number(result.confirmedRound),
   };
 };
 
@@ -301,7 +312,7 @@ export const cancelOrder = async (
   const yesAssetId = globalState.yes_asset_id;
   const noAssetId = globalState.no_asset_id;
 
-  const signerAccount: TransactionSignerAccount = { signer, addr: orderOwner };
+  const signerAccount: TransactionSignerAccount = { signer, addr: orderOwner } as any;
   const marketClient = new MarketAppClient(
     { resolveBy: 'id', id: marketAppId, sender: signerAccount },
     algodClient,
@@ -325,7 +336,7 @@ export const cancelOrder = async (
   return {
     success: true,
     txIds: result.txIDs,
-    confirmedRound: result.confirmedRound,
+    confirmedRound: Number(result.confirmedRound),
   };
 };
 
@@ -352,7 +363,7 @@ export const proposeMatch = async (
   // Always use the market's on-chain fee address
   const marketFeeAddress = globalState.fee_address;
 
-  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress };
+  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress } as any;
   const matcherClient = new MatcherAppClient(
     { resolveBy: 'id', id: matcherAppId, sender: signerAccount },
     algodClient,
@@ -364,7 +375,7 @@ export const proposeMatch = async (
   const payMakerTxn = await algokit.transferAlgos(
     {
       from: signerAccount,
-      to: getApplicationAddress(makerEscrowAppId),
+      to: getApplicationAddress(makerEscrowAppId).toString(),
       amount: algokit.microAlgos(2_000),
       skipSending: true,
     },
@@ -396,6 +407,6 @@ export const proposeMatch = async (
   return {
     success: true,
     txIds: result.txIDs,
-    confirmedRound: result.confirmedRound,
+    confirmedRound: Number(result.confirmedRound),
   };
 };
