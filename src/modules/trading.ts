@@ -3,19 +3,22 @@ import * as algokit from '@algorandfoundation/algokit-utils';
 import type { TransactionSignerAccount } from '@algorandfoundation/algokit-utils/types/account';
 import { MarketAppClient } from '../contracts/market_app.js';
 import { MatcherAppClient } from '../contracts/matcher_app.js';
+import { EscrowAppClient } from '../contracts/escrow_app.js';
 import type {
   AlphaClientConfig,
   CreateLimitOrderParams,
   CreateMarketOrderParams,
   CancelOrderParams,
   ProposeMatchParams,
+  AmendOrderParams,
   CreateOrderResult,
   CancelOrderResult,
   ProposeMatchResult,
+  AmendOrderResult,
   CounterpartyMatch,
 } from '../types.js';
 import { calculateFee } from '../utils/fees.js';
-import { getMarketGlobalState, checkAssetOptIn } from '../utils/state.js';
+import { getMarketGlobalState, checkAssetOptIn, decodeGlobalState } from '../utils/state.js';
 import { calculateMatchingOrders } from '../utils/matching.js';
 import { getOrderbook } from './orderbook.js';
 
@@ -390,6 +393,98 @@ export const proposeMatch = async (
     },
   );
   atc.addTransaction({ txn: proposeTxn.transaction, signer });
+
+  const result = await atc.execute(algodClient, 4);
+
+  return {
+    success: true,
+    txIds: result.txIDs,
+    confirmedRound: result.confirmedRound,
+  };
+};
+
+/**
+ * Amends (edits) an existing unfilled order's price, quantity, and/or slippage.
+ *
+ * Faster and cheaper than cancelling and recreating. If the new collateral
+ * requirement is higher, sends the extra funds to the escrow. If lower, the
+ * contract performs an inner refund (extra fee is budgeted automatically).
+ *
+ * Only orders with zero quantity filled can be amended.
+ *
+ * @param config - Alpha client config
+ * @param params - Amend order parameters
+ * @returns Whether the amendment succeeded
+ */
+export const amendOrder = async (
+  config: AlphaClientConfig,
+  params: AmendOrderParams,
+): Promise<AmendOrderResult> => {
+  const { algodClient, signer, activeAddress, usdcAssetId } = config;
+  const { marketAppId, escrowAppId, price, quantity, slippage = 0 } = params;
+
+  const escrowAppInfo = await algodClient.getApplicationByID(escrowAppId).do();
+  const escrowState = decodeGlobalState(
+    escrowAppInfo.params?.['global-state'] ?? escrowAppInfo['params']?.['global-state'] ?? [],
+  );
+
+  if ((escrowState.quantity_filled ?? 0) > 0) {
+    throw new Error('Cannot amend an order that has been partially or fully filled.');
+  }
+
+  const globalState = await getMarketGlobalState(algodClient, marketAppId);
+  const yesAssetId = globalState.yes_asset_id;
+  const noAssetId = globalState.no_asset_id;
+  const feeBase = globalState.fee_base_percent;
+
+  const isBuy = escrowState.side === 1;
+  const position = escrowState.position as 0 | 1;
+
+  const computeCollateral = (qty: number, px: number, slip: number): number => {
+    if (isBuy) {
+      const fee = calculateFee(qty, px + slip, feeBase);
+      return Math.floor((qty * (px + slip)) / 1_000_000) + fee;
+    }
+    return qty;
+  };
+
+  const oldCollateral = computeCollateral(
+    escrowState.quantity ?? 0,
+    escrowState.price ?? 0,
+    escrowState.slippage ?? 0,
+  );
+  const newCollateral = computeCollateral(quantity, price, slippage);
+  const delta = newCollateral - oldCollateral;
+
+  const fundAssetId = isBuy ? usdcAssetId : position === 1 ? yesAssetId : noAssetId;
+  const escrowAddr = getApplicationAddress(escrowAppId).toString();
+  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress };
+
+  const atc = new AtomicTransactionComposer();
+
+  if (delta > 0) {
+    const fundTxn = await algokit.transferAsset(
+      { from: signerAccount, to: escrowAddr, amount: delta, assetId: fundAssetId, skipSending: true },
+      algodClient,
+    );
+    atc.addTransaction({ txn: fundTxn.transaction, signer });
+  }
+
+  const escrowClient = new EscrowAppClient(
+    { resolveBy: 'id', id: escrowAppId, sender: signerAccount },
+    algodClient,
+  );
+
+  const feeMicros = delta <= 0 ? 2000 : 1000;
+  const amendCall = await escrowClient.amendOrder(
+    { price, quantity, slippage },
+    {
+      assets: [usdcAssetId, yesAssetId, noAssetId],
+      apps: [marketAppId],
+      sendParams: { fee: algokit.microAlgos(feeMicros), skipSending: true },
+    },
+  );
+  atc.addTransaction({ txn: amendCall.transaction, signer });
 
   const result = await atc.execute(algodClient, 4);
 
