@@ -436,7 +436,7 @@ export const amendOrder = async (
 
   const escrowAppInfo = await algodClient.getApplicationByID(escrowAppId).do();
   const escrowState = decodeGlobalState(
-    escrowAppInfo.params?.['global-state'] ?? escrowAppInfo['params']?.['global-state'] ?? [],
+    escrowAppInfo.params?.globalState ?? (escrowAppInfo as any).params?.['global-state'] ?? [],
   );
 
   if ((escrowState.quantity_filled ?? 0) > 0) {
@@ -469,7 +469,7 @@ export const amendOrder = async (
 
   const fundAssetId = isBuy ? usdcAssetId : position === 1 ? yesAssetId : noAssetId;
   const escrowAddr = getApplicationAddress(escrowAppId).toString();
-  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress };
+  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress } as any;
 
   const atc = new AtomicTransactionComposer();
 
@@ -502,6 +502,6 @@ export const amendOrder = async (
   return {
     success: true,
     txIds: result.txIDs,
-    confirmedRound: result.confirmedRound,
+    confirmedRound: Number(result.confirmedRound),
   };
 };
