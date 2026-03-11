@@ -31,7 +31,7 @@ export const createTestClient = (): AlphaClient | null => {
     algodClient,
     indexerClient,
     signer,
-    activeAddress: account.addr,
+    activeAddress: account.addr.toString(),
     matcherAppId: Number(process.env.TEST_MATCHER_APP_ID || '3078581851'),
     usdcAssetId: Number(process.env.TEST_USDC_ASSET_ID || '31566704'),
     apiBaseUrl: process.env.TEST_API_BASE_URL || 'https://partners.alphaarcade.com/api',

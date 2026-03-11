@@ -49,7 +49,7 @@ const client = new AlphaClient({
   algodClient,
   indexerClient,
   signer,
-  activeAddress: account.addr,
+  activeAddress: account.addr.toString(),
   matcherAppId: 3078581851,
   usdcAssetId: 31566704,
 });
@@ -359,7 +359,7 @@ const setup = () => {
     algodClient,
     indexerClient,
     signer: algosdk.makeBasicAccountTransactionSigner(account),
-    activeAddress: account.addr,
+    activeAddress: account.addr.toString(),
     matcherAppId: 3078581851,
     usdcAssetId: 31566704,
   });

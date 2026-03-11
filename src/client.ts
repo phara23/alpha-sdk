@@ -64,7 +64,7 @@ import {
  *   algodClient,
  *   indexerClient,
  *   signer,
- *   activeAddress: account.addr,
+ *   activeAddress: account.addr.toString(),
  *   matcherAppId: 3078581851,
  *   usdcAssetId: 31566704,
  * });

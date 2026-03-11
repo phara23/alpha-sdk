@@ -27,12 +27,12 @@ const setup = () => {
       algodClient,
       indexerClient,
       signer: algosdk.makeBasicAccountTransactionSigner(account),
-      activeAddress: account.addr,
+      activeAddress: account.addr.toString(),
       matcherAppId: 741347297,
       usdcAssetId: 31566704,
     apiKey: process.env.ALPHA_API_KEY!,
     }),
-    address: account.addr,
+    address: account.addr.toString(),
   };
 };
 

@@ -18,7 +18,7 @@ const main = async () => {
     algodClient,
     indexerClient,
     signer: algosdk.makeBasicAccountTransactionSigner(account),
-    activeAddress: account.addr,
+    activeAddress: account.addr.toString(),
     matcherAppId: 741347297,
     usdcAssetId: 31566704,
     apiKey: process.env.ALPHA_API_KEY!,
@@ -46,7 +46,7 @@ const main = async () => {
   const result = await client.cancelOrder({
     marketAppId,
     escrowAppId: order.escrowAppId,
-    orderOwner: account.addr,
+    orderOwner: account.addr.toString(),
   });
 
   console.log(`Cancelled: ${result.success}`);
