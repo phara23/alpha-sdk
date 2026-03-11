@@ -16,10 +16,12 @@ export type {
   CreateMarketOrderParams,
   CancelOrderParams,
   ProposeMatchParams,
+  AmendOrderParams,
   CounterpartyMatch,
   CreateOrderResult,
   CancelOrderResult,
   ProposeMatchResult,
+  AmendOrderResult,
   // Orderbook
   OrderbookEntry,
   OrderbookSide,

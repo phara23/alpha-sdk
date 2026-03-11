@@ -168,6 +168,20 @@ export type ProposeMatchParams = {
   quantityMatched: number;
 };
 
+/** Parameters for amending (editing) an existing unfilled order */
+export type AmendOrderParams = {
+  /** Market app ID */
+  marketAppId: number;
+  /** The escrow app ID of the order to amend */
+  escrowAppId: number;
+  /** New price in microunits (e.g. 500000 = $0.50) */
+  price: number;
+  /** New quantity in microunits (e.g. 1000000 = 1 share) */
+  quantity: number;
+  /** New slippage in microunits (default 0) */
+  slippage?: number;
+};
+
 /** A counterparty order to match against */
 export type CounterpartyMatch = {
   /** Escrow app ID of the counterparty order */
@@ -207,6 +221,16 @@ export type CancelOrderResult = {
 /** Result of proposing a match */
 export type ProposeMatchResult = {
   /** Whether the match succeeded */
+  success: boolean;
+  /** Transaction IDs */
+  txIds: string[];
+  /** Confirmed round number */
+  confirmedRound: number;
+};
+
+/** Result of amending an order */
+export type AmendOrderResult = {
+  /** Whether the amendment succeeded */
   success: boolean;
   /** Transaction IDs */
   txIds: string[];

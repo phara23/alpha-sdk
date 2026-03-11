@@ -156,6 +156,27 @@ const result = await client.cancelOrder({
 // result: { success, txIds }
 ```
 
+#### `amendOrder(params)`
+
+Edits an existing unfilled order in-place — cheaper and faster than cancel + recreate. The escrow contract adjusts collateral automatically: sends you a refund if the new value is lower, or requires extra funds (sent automatically) if higher.
+
+Only works on orders with zero quantity filled.
+
+```typescript
+// Get your open orders to find the escrowAppId
+const orders = await client.getOpenOrders(123456789);
+const order = orders[0];
+
+// Amend the order to a new price and quantity
+const result = await client.amendOrder({
+  marketAppId: 123456789,
+  escrowAppId: order.escrowAppId,
+  price: 600_000,       // new price: $0.60
+  quantity: 3_000_000,  // new quantity: 3 shares
+});
+// result: { success, txIds, confirmedRound }
+```
+
 #### `proposeMatch(params)`
 
 Manually matches an existing maker order against a taker.

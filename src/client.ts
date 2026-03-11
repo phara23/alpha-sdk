@@ -4,12 +4,14 @@ import type {
   CreateMarketOrderParams,
   CancelOrderParams,
   ProposeMatchParams,
+  AmendOrderParams,
   SplitSharesParams,
   MergeSharesParams,
   ClaimParams,
   CreateOrderResult,
   CancelOrderResult,
   ProposeMatchResult,
+  AmendOrderResult,
   SplitMergeResult,
   ClaimResult,
   Orderbook,
@@ -22,6 +24,7 @@ import {
   createMarketOrder,
   cancelOrder,
   proposeMatch,
+  amendOrder,
 } from './modules/trading.js';
 import {
   splitShares,
@@ -154,6 +157,22 @@ export class AlphaClient {
    */
   async proposeMatch(params: ProposeMatchParams): Promise<ProposeMatchResult> {
     return proposeMatch(this.config, params);
+  }
+
+  /**
+   * Amends (edits) an existing unfilled order in-place.
+   *
+   * Cheaper and faster than cancel + recreate. The escrow contract adjusts
+   * collateral automatically — sends you a refund if the new value is lower,
+   * or requires extra funds if higher.
+   *
+   * Only works on orders with zero quantity filled.
+   *
+   * @param params - Amend parameters (marketAppId, escrowAppId, price, quantity, slippage?)
+   * @returns Whether the amendment succeeded
+   */
+  async amendOrder(params: AmendOrderParams): Promise<AmendOrderResult> {
+    return amendOrder(this.config, params);
   }
 
   // ============================================
