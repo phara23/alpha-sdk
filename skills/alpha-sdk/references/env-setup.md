@@ -7,19 +7,19 @@ Create a `.env` file in your project root with these variables. Defaults to main
 ALPHA_MNEMONIC="word1 word2 word3 ... word25"
 
 # Network — defaults to mainnet Algonode (free, no API key)
-ALGOD_SERVER=https://mainnet-api.algonode.cloud
-ALGOD_TOKEN=
-ALGOD_PORT=443
-INDEXER_SERVER=https://mainnet-idx.algonode.cloud
-INDEXER_TOKEN=
-INDEXER_PORT=443
+ALPHA_ALGOD_SERVER=https://mainnet-api.algonode.cloud
+ALPHA_ALGOD_TOKEN=
+ALPHA_ALGOD_PORT=443
+ALPHA_INDEXER_SERVER=https://mainnet-idx.algonode.cloud
+ALPHA_INDEXER_TOKEN=
+ALPHA_INDEXER_PORT=443
 
 # The market you're interacting with (Algorand app ID)
-MARKET_APP_ID=
+ALPHA_MARKET_APP_ID=
 
 # Alpha Arcade matcher app and USDC asset — defaults to mainnet values
-MATCHER_APP_ID=3078581851
-USDC_ASSET_ID=31566704
+ALPHA_MATCHER_APP_ID=3078581851
+ALPHA_USDC_ASSET_ID=31566704
 
 # Alpha Arcade API key — required for getLiveMarketsFromApi(), getRewardMarkets(), getWalletOrdersFromApi()
 ALPHA_API_KEY=your_api_key_here
@@ -47,8 +47,8 @@ dotenv.config();
 To use testnet, point the env vars at Algonode testnet and get the testnet `matcherAppId` from the Alpha Arcade team:
 
 ```ini
-ALGOD_SERVER=https://testnet-api.algonode.cloud
-INDEXER_SERVER=https://testnet-idx.algonode.cloud
+ALPHA_ALGOD_SERVER=https://testnet-api.algonode.cloud
+ALPHA_INDEXER_SERVER=https://testnet-idx.algonode.cloud
 ```
 
 Then update `matcherAppId` and `usdcAssetId` in your `AlphaClient` config accordingly — see the Constants table in `SKILL.md`.

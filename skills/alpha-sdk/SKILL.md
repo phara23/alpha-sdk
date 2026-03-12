@@ -52,19 +52,19 @@ import { AlphaClient } from '@alpha-arcade/sdk';
 const account = algosdk.mnemonicToSecretKey(process.env.ALPHA_MNEMONIC!);
 const client = new AlphaClient({
   algodClient: new algosdk.Algodv2(
-    process.env.ALGOD_TOKEN ?? '',
-    process.env.ALGOD_SERVER ?? 'https://mainnet-api.algonode.cloud',
-    Number(process.env.ALGOD_PORT ?? 443),
+    process.env.ALPHA_ALGOD_TOKEN ?? '',
+    process.env.ALPHA_ALGOD_SERVER ?? 'https://mainnet-api.algonode.cloud',
+    Number(process.env.ALPHA_ALGOD_PORT ?? 443),
   ),
   indexerClient: new algosdk.Indexer(
-    process.env.INDEXER_TOKEN ?? '',
-    process.env.INDEXER_SERVER ?? 'https://mainnet-idx.algonode.cloud',
-    Number(process.env.INDEXER_PORT ?? 443),
+    process.env.ALPHA_INDEXER_TOKEN ?? '',
+    process.env.ALPHA_INDEXER_SERVER ?? 'https://mainnet-idx.algonode.cloud',
+    Number(process.env.ALPHA_INDEXER_PORT ?? 443),
   ),
   signer: algosdk.makeBasicAccountTransactionSigner(account),
   activeAddress: account.addr.toString(),   // must call .toString()
-  matcherAppId: Number(process.env.MATCHER_APP_ID ?? 3078581851),
-  usdcAssetId: Number(process.env.USDC_ASSET_ID ?? 31566704),
+  matcherAppId: Number(process.env.ALPHA_MATCHER_APP_ID ?? 3078581851),
+  usdcAssetId: Number(process.env.ALPHA_USDC_ASSET_ID ?? 31566704),
   apiKey: process.env.ALPHA_API_KEY,        // optional — enables REST API methods
 });
 ```
@@ -108,8 +108,8 @@ const rewardMarkets = await client.getRewardMarkets();  // requires apiKey
   noAssetId: number,      // NO outcome token ASA ID
   title: string,
   endTs: number,          // resolution timestamp in seconds
-  isResolved: boolean,
-  isLive: boolean,
+  isResolved?: boolean,
+  isLive?: boolean,
   yesProb?: number,       // API only
   volume?: number,        // API only
   totalRewards?: number,  // reward markets — microunits
@@ -237,12 +237,24 @@ import {
 
 ## Constants
 
+**Config fields** (`AlphaClientConfig`) — set via env vars:
+
+| Field | Env var | Mainnet default |
+|-------|---------|-----------------|
+| `matcherAppId` | `ALPHA_MATCHER_APP_ID` | `3078581851` |
+| `usdcAssetId` | `ALPHA_USDC_ASSET_ID` | `31566704` |
+
+**Exported SDK constants** (from `@alpha-arcade/sdk`):
+
 | Constant | Mainnet | Testnet |
 |----------|---------|---------|
-| `MATCHER_APP_ID` | `3078581851` | check testnet deployment |
-| `USDC_ASSET_ID` | `31566704` | different on testnet |
 | `DEFAULT_MARKET_CREATOR_ADDRESS` | `5P5Y6HTWUNG2E3VXBQDZN3ENZD3JPAIR5PKT3LOYJAPAUKOLFD6KANYTRY` | different on testnet |
 | `DEFAULT_API_BASE_URL` | `https://platform.alphaarcade.com/api` | — |
+
+**Endpoints:**
+
+| | Mainnet | Testnet |
+|-|---------|---------|
 | Algod | `https://mainnet-api.algonode.cloud` | `https://testnet-api.algonode.cloud` |
 | Indexer | `https://mainnet-idx.algonode.cloud` | `https://testnet-idx.algonode.cloud` |
 

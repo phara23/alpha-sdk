@@ -26,19 +26,19 @@ const POLL_INTERVAL   = 60_000;    // 60 seconds
 const account = algosdk.mnemonicToSecretKey(process.env.ALPHA_MNEMONIC!);
 const client = new AlphaClient({
   algodClient: new algosdk.Algodv2(
-    process.env.ALGOD_TOKEN ?? '',
-    process.env.ALGOD_SERVER ?? 'https://mainnet-api.algonode.cloud',
-    Number(process.env.ALGOD_PORT ?? 443),
+    process.env.ALPHA_ALGOD_TOKEN ?? '',
+    process.env.ALPHA_ALGOD_SERVER ?? 'https://mainnet-api.algonode.cloud',
+    Number(process.env.ALPHA_ALGOD_PORT ?? 443),
   ),
   indexerClient: new algosdk.Indexer(
-    process.env.INDEXER_TOKEN ?? '',
-    process.env.INDEXER_SERVER ?? 'https://mainnet-idx.algonode.cloud',
-    Number(process.env.INDEXER_PORT ?? 443),
+    process.env.ALPHA_INDEXER_TOKEN ?? '',
+    process.env.ALPHA_INDEXER_SERVER ?? 'https://mainnet-idx.algonode.cloud',
+    Number(process.env.ALPHA_INDEXER_PORT ?? 443),
   ),
   signer: algosdk.makeBasicAccountTransactionSigner(account),
   activeAddress: account.addr.toString(),
-  matcherAppId: Number(process.env.MATCHER_APP_ID ?? 3078581851),
-  usdcAssetId: Number(process.env.USDC_ASSET_ID ?? 31566704),
+  matcherAppId: Number(process.env.ALPHA_MATCHER_APP_ID ?? 3078581851),
+  usdcAssetId: Number(process.env.ALPHA_USDC_ASSET_ID ?? 31566704),
   apiKey: process.env.ALPHA_API_KEY,
 });
 
