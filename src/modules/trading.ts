@@ -11,10 +11,12 @@ import type {
   CreateMarketOrderParams,
   CancelOrderParams,
   ProposeMatchParams,
+  ProcessMatchParams,
   AmendOrderParams,
   CreateOrderResult,
   CancelOrderResult,
   ProposeMatchResult,
+  ProcessMatchResult,
   AmendOrderResult,
   CounterpartyMatch,
 } from '../types.js';
@@ -415,6 +417,121 @@ export const proposeMatch = async (
 };
 
 /**
+ * Matches two existing limit orders (e.g. after an amend).
+ *
+ * Calls the market app's process_potential_match(maker, taker). The taker is
+ * the order placed last and pays the fee; the maker is the counterparty. No
+ * create-escrow is required — both escrows must already exist.
+ *
+ * @param config - Alpha client config
+ * @param params - Process match parameters (market, maker escrow, taker escrow)
+ * @returns Whether the match succeeded
+ */
+export const processMatch = async (
+  config: AlphaClientConfig,
+  params: ProcessMatchParams,
+): Promise<ProcessMatchResult> => {
+  const { algodClient, signer, activeAddress, usdcAssetId } = config;
+  const { marketAppId, makerEscrowAppId, takerEscrowAppId } = params;
+
+  const [marketState, makerAppInfo, takerAppInfo] = await Promise.all([
+    getMarketGlobalState(algodClient, marketAppId),
+    algodClient.getApplicationByID(makerEscrowAppId).do(),
+    algodClient.getApplicationByID(takerEscrowAppId).do(),
+  ]);
+  const marketFeeAddress = marketState.fee_address;
+  const yesAssetId = marketState.yes_asset_id;
+  const noAssetId = marketState.no_asset_id;
+
+  const makerState = decodeGlobalState(
+    (makerAppInfo as any).params?.globalState ?? (makerAppInfo as any).params?.['global-state'] ?? [],
+  );
+  const takerState = decodeGlobalState(
+    (takerAppInfo as any).params?.globalState ?? (takerAppInfo as any).params?.['global-state'] ?? [],
+  );
+  const makerOwner = makerState.owner ?? '';
+  const takerOwner = takerState.owner ?? '';
+
+  const makerRemaining =
+    (makerState.quantity ?? 0) - (makerState.quantity_filled ?? 0);
+  const takerRemaining =
+    (takerState.quantity ?? 0) - (takerState.quantity_filled ?? 0);
+  const matchedQuantity = Math.min(makerRemaining, takerRemaining);
+  if (matchedQuantity <= 0) {
+    throw new Error('processMatch: no quantity left to match on maker or taker escrow.');
+  }
+
+  const signerAccount: TransactionSignerAccount = { signer, addr: activeAddress } as any;
+
+  const makerEscrowClient = new EscrowAppClient(
+    { resolveBy: 'id', id: makerEscrowAppId, sender: signerAccount },
+    algodClient,
+  );
+  const takerEscrowClient = new EscrowAppClient(
+    { resolveBy: 'id', id: takerEscrowAppId, sender: signerAccount },
+    algodClient,
+  );
+  const marketClient = new MarketAppClient(
+    { resolveBy: 'id', id: marketAppId, sender: signerAccount },
+    algodClient,
+  );
+
+  const atc = new AtomicTransactionComposer();
+
+  const assets = [usdcAssetId, yesAssetId, noAssetId];
+  const sendParamsWithFee = { skipSending: true, fee: algokit.microAlgos(3_000) };
+  const sendParamsNoop = { skipSending: true, fee: algokit.microAlgos(1_000) };
+
+  const matchMakerTxn = await makerEscrowClient.matchMaker(
+    { taker: takerEscrowAppId, matchQuantity: matchedQuantity },
+    {
+      assets: assets,
+      apps: [marketAppId],
+      accounts: [takerOwner, marketFeeAddress],
+      sendParams: sendParamsWithFee,
+    },
+  );
+  atc.addTransaction({ txn: matchMakerTxn.transaction, signer });
+
+  const matchTakerTxn = await takerEscrowClient.matchTaker(
+    { maker: makerEscrowAppId },
+    {
+      assets: assets,
+      apps: [marketAppId],
+      accounts: [makerOwner, marketFeeAddress],
+      sendParams: sendParamsWithFee,
+    },
+  );
+  atc.addTransaction({ txn: matchTakerTxn.transaction, signer });
+
+  // 3. process_potential_match (on market app)
+  const processMatchTxn = await marketClient.processPotentialMatch(
+    { maker: makerEscrowAppId, taker: takerEscrowAppId },
+    {
+      assets: assets,
+      accounts: [makerOwner, takerOwner, marketFeeAddress],
+      sendParams: sendParamsNoop,
+    },
+  );
+  atc.addTransaction({ txn: processMatchTxn.transaction, signer });
+
+  // 4. do_noop (on market app)
+  const doNoopTxn = await marketClient.doNoop(
+    { callNumber: 1 },
+    { sendParams: sendParamsNoop },
+  );
+  atc.addTransaction({ txn: doNoopTxn.transaction, signer });
+
+  const result = await atc.execute(algodClient, 4);
+
+  return {
+    success: true,
+    txIds: result.txIDs,
+    confirmedRound: Number(result.confirmedRound),
+  };
+};
+
+/**
  * Amends (edits) an existing unfilled order's price, quantity, and/or slippage.
  *
  * Faster and cheaper than cancelling and recreating. If the new collateral
@@ -422,10 +539,11 @@ export const proposeMatch = async (
  * contract performs an inner refund (extra fee is budgeted automatically).
  *
  * Only orders with zero quantity filled can be amended.
+ * If the new terms have matching orders on the book, the orders are matched automatically.
  *
  * @param config - Alpha client config
  * @param params - Amend order parameters
- * @returns Whether the amendment succeeded
+ * @returns Whether the amendment succeeded, plus txIds and confirmedRound
  */
 export const amendOrder = async (
   config: AlphaClientConfig,
@@ -498,10 +616,56 @@ export const amendOrder = async (
   atc.addTransaction({ txn: amendCall.transaction, signer });
 
   const result = await atc.execute(algodClient, 4);
+  const allTxIds = [...result.txIDs];
+  let lastConfirmedRound = Number(result.confirmedRound);
+
+  // After confirmation, check for matching orders and run processPotentialMatch.
+  const orderbook = await getOrderbook(config, marketAppId);
+  let matchingOrders = calculateMatchingOrders(orderbook, isBuy, position === 1, quantity, price, slippage);
+  matchingOrders = matchingOrders.filter((m) => m.escrowAppId !== escrowAppId);
+
+  if (matchingOrders.length > 0) {
+    let quantityLeft = quantity;
+    const matchedQuantities: number[] = [];
+    const matchedPrices: number[] = [];
+
+    for (const m of matchingOrders) {
+      if (quantityLeft <= 0) break;
+      try {
+        const matchResult = await processMatch(config, {
+          marketAppId,
+          makerEscrowAppId: m.escrowAppId,
+          takerEscrowAppId: escrowAppId,
+        });
+        allTxIds.push(...matchResult.txIds);
+        lastConfirmedRound = matchResult.confirmedRound;
+        const q = Math.min(m.quantity, quantityLeft);
+        matchedQuantities.push(q);
+        matchedPrices.push((m.price ?? price) * q);
+        quantityLeft -= q;
+      } catch (err) {
+        console.log(`Error matching order: ${JSON.stringify(err)}`);
+        break;
+      }
+    }
+
+    const totalMatchedQuantity = matchedQuantities.reduce((a, b) => a + b, 0);
+    const matchedPrice =
+      totalMatchedQuantity > 0
+        ? Math.round(matchedPrices.reduce((a, b) => a + b, 0) / totalMatchedQuantity)
+        : undefined;
+
+    return {
+      success: true,
+      txIds: allTxIds,
+      confirmedRound: lastConfirmedRound,
+      ...(totalMatchedQuantity > 0 && { matchedQuantity: totalMatchedQuantity, matchedPrice }),
+    };
+  }
 
   return {
     success: true,
-    txIds: result.txIDs,
-    confirmedRound: Number(result.confirmedRound),
+    txIds: allTxIds,
+    confirmedRound: lastConfirmedRound,
   };
 };

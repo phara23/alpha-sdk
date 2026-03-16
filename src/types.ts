@@ -168,6 +168,19 @@ export type ProposeMatchParams = {
   quantityMatched: number;
 };
 
+/**
+ * Parameters for matching two existing limit orders (e.g. after an amend).
+ * The taker is the order placed last and pays the fee; the maker is the counterparty.
+ */
+export type ProcessMatchParams = {
+  /** Market app ID */
+  marketAppId: number;
+  /** Maker escrow app ID (existing order — was on the book first) */
+  makerEscrowAppId: number;
+  /** Taker escrow app ID (existing order — placed last, pays the fee) */
+  takerEscrowAppId: number;
+};
+
 /** Parameters for amending (editing) an existing unfilled order */
 export type AmendOrderParams = {
   /** Market app ID */
@@ -228,6 +241,16 @@ export type ProposeMatchResult = {
   confirmedRound: number;
 };
 
+/** Result of processing a match between two existing orders */
+export type ProcessMatchResult = {
+  /** Whether the match succeeded */
+  success: boolean;
+  /** Transaction IDs */
+  txIds: string[];
+  /** Confirmed round number */
+  confirmedRound: number;
+};
+
 /** Result of amending an order */
 export type AmendOrderResult = {
   /** Whether the amendment succeeded */
@@ -236,6 +259,10 @@ export type AmendOrderResult = {
   txIds: string[];
   /** Confirmed round number */
   confirmedRound: number;
+  /** Total quantity matched against counterparty orders (if matching was performed) */
+  matchedQuantity?: number;
+  /** Volume-weighted average fill price in microunits (if any matches) */
+  matchedPrice?: number;
 };
 
 // ============================================

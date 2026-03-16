@@ -4,6 +4,7 @@ import type {
   CreateMarketOrderParams,
   CancelOrderParams,
   ProposeMatchParams,
+  ProcessMatchParams,
   AmendOrderParams,
   SplitSharesParams,
   MergeSharesParams,
@@ -11,6 +12,7 @@ import type {
   CreateOrderResult,
   CancelOrderResult,
   ProposeMatchResult,
+  ProcessMatchResult,
   AmendOrderResult,
   SplitMergeResult,
   ClaimResult,
@@ -24,6 +26,7 @@ import {
   createMarketOrder,
   cancelOrder,
   proposeMatch,
+  processMatch,
   amendOrder,
 } from './modules/trading.js';
 import {
@@ -157,6 +160,20 @@ export class AlphaClient {
    */
   async proposeMatch(params: ProposeMatchParams): Promise<ProposeMatchResult> {
     return proposeMatch(this.config, params);
+  }
+
+  /**
+   * Matches two existing limit orders (no create-escrow in the group).
+   *
+   * Calls the market app's process_potential_match(maker, taker). Use this
+   * after amending an order: the amended order is the taker (pays the fee),
+   * the counterparty is the maker.
+   *
+   * @param params - Process match params (marketAppId, makerEscrowAppId, takerEscrowAppId)
+   * @returns Whether the match succeeded
+   */
+  async processMatch(params: ProcessMatchParams): Promise<ProcessMatchResult> {
+    return processMatch(this.config, params);
   }
 
   /**
