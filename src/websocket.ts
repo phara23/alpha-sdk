@@ -150,7 +150,7 @@ export class AlphaWebSocket {
 
   /** Query a server property (e.g. "heartbeat", "limits") */
   getProperty(property: string): Promise<unknown> {
-    return this.sendRequest({ method: 'GET_PROPERTY', property });
+    return this.sendRequest({ method: 'GET_PROPERTY', params: [property] });
   }
 
   // ============================================
@@ -279,9 +279,10 @@ export class AlphaWebSocket {
     }
 
     // Handle responses to control requests
-    if (msg.requestId && this.pendingRequests.has(msg.requestId)) {
-      const req = this.pendingRequests.get(msg.requestId)!;
-      this.pendingRequests.delete(msg.requestId);
+    const responseId = typeof msg.id === 'string' ? msg.id : typeof msg.requestId === 'string' ? msg.requestId : null;
+    if (responseId && this.pendingRequests.has(responseId)) {
+      const req = this.pendingRequests.get(responseId)!;
+      this.pendingRequests.delete(responseId);
       clearTimeout(req.timer);
       req.resolve(msg);
       return;
@@ -303,11 +304,11 @@ export class AlphaWebSocket {
   }
 
   private sendSubscribe(stream: string, params: Record<string, string>): void {
-    this.send({ method: 'SUBSCRIBE', stream, ...params });
+    this.send({ method: 'SUBSCRIBE', params: [{ stream, ...params }] });
   }
 
   private sendUnsubscribe(stream: string, params: Record<string, string>): void {
-    this.send({ method: 'UNSUBSCRIBE', stream, ...params });
+    this.send({ method: 'UNSUBSCRIBE', params: [{ stream, ...params }] });
   }
 
   private sendRequest(payload: Record<string, unknown>, timeoutMs = 10_000): Promise<unknown> {
@@ -323,10 +324,10 @@ export class AlphaWebSocket {
 
       if (!this.connected) {
         this.connect().then(() => {
-          this.send({ ...payload, requestId });
+          this.send({ ...payload, id: requestId });
         }).catch(reject);
       } else {
-        this.send({ ...payload, requestId });
+        this.send({ ...payload, id: requestId });
       }
     });
   }
@@ -344,7 +345,7 @@ export class AlphaWebSocket {
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
-      this.send({ type: 'ping' });
+      this.send({ method: 'PING' });
     }, this.heartbeatIntervalMs);
   }
 

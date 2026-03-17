@@ -341,6 +341,27 @@ for (const m of rewardMarkets) {
 
 Real-time data streams via WebSocket. No API key or auth required. Replaces polling with push-based updates.
 
+The SDK connects to the public platform websocket at `wss://wss.platform.alphaarcade.com`. The first
+subscription is sent in the connection query string, and any later subscribe or unsubscribe calls use the
+server's control-message envelope:
+
+```json
+{
+  "id": "request-id",
+  "method": "SUBSCRIBE",
+  "params": [
+    { "stream": "get-orderbook", "slug": "will-btc-hit-100k" }
+  ]
+}
+```
+
+Supported public streams:
+
+- `get-live-markets`
+- `get-market` with `slug`
+- `get-orderbook` with `slug`
+- `get-wallet-orders` with `wallet`
+
 ```typescript
 import { AlphaWebSocket } from '@alpha-arcade/sdk';
 
@@ -429,7 +450,7 @@ unsub();
 // List active subscriptions on this connection
 const subs = await ws.listSubscriptions();
 
-// Query server properties
+// Query server properties (`heartbeat` or `limits`)
 const props = await ws.getProperty('heartbeat');
 ```
 
