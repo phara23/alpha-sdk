@@ -1,5 +1,12 @@
 import * as algosdk from 'algosdk';
-import type { AlphaClientConfig, Orderbook, OrderbookEntry, EscrowGlobalState, OpenOrder } from '../types.js';
+import type {
+  AlphaClientConfig,
+  FullOrderbookSnapshot,
+  Orderbook,
+  OrderbookEntry,
+  EscrowGlobalState,
+  OpenOrder,
+} from '../types.js';
 import { decodeGlobalState } from '../utils/state.js';
 import { DEFAULT_API_BASE_URL } from '../constants.js';
 import { getLiveMarkets } from './markets.js';
@@ -238,4 +245,34 @@ export const getWalletOrdersFromApi = async (config: AlphaClientConfig, walletAd
   }
 
   return allOrders;
+};
+
+/**
+ * Fetches the full processed orderbook snapshot for a market from the Alpha REST API.
+ *
+ * Returns the same shape as websocket `orderbook_changed.orderbook`: a record keyed by
+ * `marketAppId`, where each value contains aggregated bids/asks plus detailed yes/no orders.
+ * Requires an API key.
+ *
+ * @param config - Alpha client config
+ * @param marketId - The Alpha market UUID
+ * @returns Full processed market orderbook keyed by marketAppId
+ */
+export const getFullOrderbookFromApi = async (
+  config: AlphaClientConfig,
+  marketId: string,
+): Promise<FullOrderbookSnapshot> => {
+  if (!config.apiKey) {
+    throw new Error('apiKey is required for API-based orderbook fetching. Retrieve an API key from the Alpha Arcade platform via the Account page and pass it to the client.');
+  }
+
+  const baseUrl = config.apiBaseUrl ?? DEFAULT_API_BASE_URL;
+  const url = `${baseUrl}/get-full-orderbook?marketId=${encodeURIComponent(marketId)}`;
+  const response = await fetch(url, { headers: { 'x-api-key': config.apiKey } });
+
+  if (!response.ok) {
+    throw new Error(`Alpha API error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json() as Promise<FullOrderbookSnapshot>;
 };

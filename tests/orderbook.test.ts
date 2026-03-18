@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { createTestClient, getTestMarketAppId } from './setup.js';
+import { createReadOnlyClient, createTestClient, getTestMarketAppId } from './setup.js';
 import type { AlphaClient } from '../src/index.js';
 
 describe('Orderbook (on-chain read)', () => {
@@ -66,5 +66,38 @@ describe('Orderbook (on-chain read)', () => {
     }
 
     console.log(`Found ${orders.length} open orders for wallet on this market`);
+  });
+});
+
+describe('Orderbook (REST API)', () => {
+  let client: AlphaClient;
+
+  beforeAll(() => {
+    client = createReadOnlyClient();
+  });
+
+  it('fetches the full processed orderbook snapshot from the API', async () => {
+    if (!process.env.ALPHA_API_KEY) {
+      console.log('Skipping API test: no ALPHA_API_KEY set');
+      return;
+    }
+
+    const markets = await client.getLiveMarketsFromApi();
+    if (markets.length === 0) {
+      console.log('Skipping API test: no live markets returned');
+      return;
+    }
+
+    const snapshot = await client.getFullOrderbookFromApi(markets[0].id);
+    expect(snapshot).toBeTruthy();
+    expect(typeof snapshot).toBe('object');
+
+    const firstBook = Object.values(snapshot)[0];
+    if (firstBook) {
+      expect(firstBook).toHaveProperty('bids');
+      expect(firstBook).toHaveProperty('asks');
+      expect(firstBook).toHaveProperty('yes');
+      expect(firstBook).toHaveProperty('no');
+    }
   });
 });

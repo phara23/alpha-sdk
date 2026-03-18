@@ -2,7 +2,7 @@
 
 TypeScript SDK for trading on **Alpha Market** — Algorand prediction markets.
 
-Place orders, manage positions, read orderbooks, and build automated trading bots — all directly on-chain.
+Place orders, manage positions, read orderbooks from the API or chain, and build automated trading bots.
 
 ## Installation
 
@@ -246,7 +246,7 @@ for (const pos of positions) {
 
 #### `getOrderbook(marketAppId)`
 
-Fetches the full on-chain orderbook.
+Fetches the full on-chain orderbook for a single market app.
 
 ```typescript
 const book = await client.getOrderbook(123456789);
@@ -260,6 +260,24 @@ console.log('No asks:', book.no.asks.length);
 if (book.yes.bids.length > 0) {
   const best = book.yes.bids.sort((a, b) => b.price - a.price)[0];
   console.log(`Best Yes bid: $${best.price / 1e6} for ${best.quantity / 1e6} shares`);
+}
+```
+
+#### `getFullOrderbookFromApi(marketId)`
+
+Fetches the full processed orderbook snapshot for a market from the Alpha REST API. Requires `apiKey`.
+
+This returns the same shape as websocket `orderbook_changed.orderbook`: a record keyed by `marketAppId`, where each value includes:
+- top-level aggregated `bids`, `asks`, and `spread`
+- detailed `yes` and `no` bid/ask orders with `escrowAppId` and `owner`
+
+```typescript
+const snapshot = await client.getFullOrderbookFromApi('market-uuid-here');
+
+for (const [appId, book] of Object.entries(snapshot)) {
+  console.log(`App ${appId}: spread=${book.spread}`);
+  console.log('Top-level bids:', book.bids);
+  console.log('Detailed YES bids:', book.yes.bids);
 }
 ```
 
@@ -407,7 +425,7 @@ ws.subscribeMarket('will-btc-hit-100k', (event) => {
 
 #### `subscribeOrderbook(slug, callback)`
 
-Receive full orderbook snapshots on every change (~5s interval). Replaces on-chain polling.
+Receive full orderbook snapshots on every change (~5s interval). The payload matches `getFullOrderbookFromApi(marketId)`.
 
 **Note:** The WebSocket API uses market **slugs** (URL-friendly names like `"will-btc-hit-100k"`), not `marketAppId` numbers. You can get a market's slug from the `slug` field on `Market` objects returned by `getLiveMarkets()` or `getMarket()`.
 

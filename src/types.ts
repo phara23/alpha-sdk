@@ -315,6 +315,12 @@ export type AggregatedOrderbook = {
   no: AggregatedOrderbookSide;
 };
 
+/**
+ * Full processed market orderbook keyed by marketAppId.
+ * Matches the REST `/get-full-orderbook` response and `orderbook_changed.orderbook`.
+ */
+export type FullOrderbookSnapshot = Record<string, WsOrderbookApp>;
+
 // ============================================
 // Position Types
 // ============================================
@@ -474,7 +480,7 @@ export type OrderbookChangedEvent = {
   type: 'orderbook_changed';
   ts: number;
   marketId: string;
-  orderbook: Record<string, WsOrderbookApp>;
+  orderbook: FullOrderbookSnapshot;
 };
 
 /** Payload for markets_changed events (incremental diffs) */

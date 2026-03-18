@@ -31,6 +31,7 @@ export type {
   OrderbookEntry,
   OrderbookSide,
   Orderbook,
+  FullOrderbookSnapshot,
   AggregatedOrderbookEntry,
   AggregatedOrderbookSide,
   AggregatedOrderbook,

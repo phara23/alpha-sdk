@@ -16,6 +16,7 @@ import type {
   AmendOrderResult,
   SplitMergeResult,
   ClaimResult,
+  FullOrderbookSnapshot,
   Orderbook,
   OpenOrder,
   WalletPosition,
@@ -35,7 +36,12 @@ import {
   claim,
   getPositions,
 } from './modules/positions.js';
-import { getOrderbook, getOpenOrders, getWalletOrdersFromApi } from './modules/orderbook.js';
+import {
+  getFullOrderbookFromApi,
+  getOrderbook,
+  getOpenOrders,
+  getWalletOrdersFromApi,
+} from './modules/orderbook.js';
 import { DEFAULT_API_BASE_URL } from './constants.js';
 import {
   getLiveMarkets as fetchLiveMarkets,
@@ -53,7 +59,7 @@ import {
  * Provides methods for:
  * - **Trading**: Create limit/market orders, cancel orders, propose matches
  * - **Positions**: Split/merge shares, claim resolved tokens, view positions
- * - **Orderbook**: Read on-chain orderbook for any market
+ * - **Orderbook**: Read on-chain orderbooks or fetch full API-backed market snapshots
  * - **Markets**: Fetch live markets from the Alpha API
  *
  * @example
@@ -264,6 +270,20 @@ export class AlphaClient {
    */
   async getOrderbook(marketAppId: number): Promise<Orderbook> {
     return getOrderbook(this.config, marketAppId);
+  }
+
+  /**
+   * Fetches the full processed orderbook snapshot for a market from the Alpha REST API.
+   *
+   * Returns the same shape as websocket `orderbook_changed.orderbook`: a record keyed by
+   * `marketAppId`, where each value includes aggregated bids/asks plus detailed yes/no orders.
+   * Requires `apiKey`.
+   *
+   * @param marketId - The Alpha market UUID
+   * @returns Full processed market orderbook keyed by marketAppId
+   */
+  async getFullOrderbookFromApi(marketId: string): Promise<FullOrderbookSnapshot> {
+    return getFullOrderbookFromApi(this.config, marketId);
   }
 
   /**
