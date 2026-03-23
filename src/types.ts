@@ -480,6 +480,8 @@ export type OrderbookChangedEvent = {
   type: 'orderbook_changed';
   ts: number;
   marketId: string;
+  slug?: string;
+  version: number;
   orderbook: FullOrderbookSnapshot;
 };
 

@@ -81,6 +81,7 @@ export class AlphaWebSocket {
   private ws: WebSocketLike | null = null;
   private subscriptions = new Map<StreamKey, Subscription>();
   private pendingRequests = new Map<string, PendingRequest>();
+  private lastOrderbookVersionBySubscription = new Map<StreamKey, number>();
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
@@ -217,6 +218,7 @@ export class AlphaWebSocket {
 
     return () => {
       this.subscriptions.delete(key);
+      this.lastOrderbookVersionBySubscription.delete(key);
       if (this.connected) {
         this.sendUnsubscribe(stream, params);
       }
@@ -235,9 +237,10 @@ export class AlphaWebSocket {
         this.reconnectAttempts = 0;
         this.startHeartbeat();
 
-        // Subscribe to any streams that weren't in the initial query string
+        // Re-send all subscriptions after open so the server can return
+        // a fresh snapshot for stateful streams like orderbook_changed.
         const subs = [...this.subscriptions.values()];
-        for (const sub of subs.slice(1)) {
+        for (const sub of subs) {
           this.sendSubscribe(sub.stream, sub.params);
         }
 
@@ -292,15 +295,65 @@ export class AlphaWebSocket {
     const eventType = msg.type as string | undefined;
     if (!eventType) return;
 
-    for (const sub of this.subscriptions.values()) {
-      if (sub.eventType === eventType) {
-        try {
-          sub.callback(msg);
-        } catch {
-          // Don't let user callback errors kill the socket
-        }
+    for (const [key, sub] of this.subscriptions.entries()) {
+      if (!this.matchesSubscriptionMessage(sub, msg)) {
+        continue;
+      }
+
+      if (!this.shouldDispatchSubscriptionMessage(key, sub, msg)) {
+        continue;
+      }
+
+      try {
+        sub.callback(msg);
+      } catch {
+        // Don't let user callback errors kill the socket
       }
     }
+  }
+
+  private matchesSubscriptionMessage(sub: Subscription, msg: any): boolean {
+    if (sub.eventType !== msg.type) return false;
+
+    if (msg.type === 'orderbook_changed') {
+      const messageMarketId = typeof msg.marketId === 'string' ? msg.marketId : '';
+      const messageSlug = typeof msg.slug === 'string' ? msg.slug : '';
+      const subscriptionMarketId = typeof sub.params.marketId === 'string' ? sub.params.marketId : '';
+      const subscriptionSlug = typeof sub.params.slug === 'string' ? sub.params.slug : '';
+
+      if (subscriptionMarketId) return subscriptionMarketId === messageMarketId;
+      if (subscriptionSlug && messageSlug) return subscriptionSlug === messageSlug;
+      if (subscriptionSlug || subscriptionMarketId) return false;
+    }
+
+    if (msg.type === 'wallet_orders_changed') {
+      const messageWallet = typeof msg.wallet === 'string' ? msg.wallet : '';
+      const subscriptionWallet = typeof sub.params.wallet === 'string' ? sub.params.wallet : '';
+
+      if (subscriptionWallet) return subscriptionWallet === messageWallet;
+      return false;
+    }
+
+    return true;
+  }
+
+  private shouldDispatchSubscriptionMessage(key: StreamKey, sub: Subscription, msg: any): boolean {
+    if (sub.eventType !== 'orderbook_changed') {
+      return true;
+    }
+
+    const version = Number(msg.version ?? 0);
+    if (!Number.isFinite(version)) {
+      return true;
+    }
+
+    const lastVersion = this.lastOrderbookVersionBySubscription.get(key) ?? 0;
+    if (version < lastVersion) {
+      return false;
+    }
+
+    this.lastOrderbookVersionBySubscription.set(key, version);
+    return true;
   }
 
   private sendSubscribe(stream: string, params: Record<string, string>): void {
