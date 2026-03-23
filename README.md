@@ -344,12 +344,13 @@ const market = await client.getMarketFromApi('uuid-here');
 
 #### `getRewardMarkets()`
 
-Fetches markets that have liquidity rewards from the Alpha REST API. Requires `apiKey`. Returns the same `Market[]` shape with reward fields populated: `totalRewards`, `rewardsPaidOut`, `rewardsSpreadDistance`, `rewardsMinContracts`, `lastRewardAmount`, `lastRewardTs`.
+Fetches markets that have liquidity rewards from the Alpha REST API. Requires `apiKey`. Returns the same `Market[]` shape with reward fields populated: `totalRewards`, `totalPregameRewards`, `rewardsPaidOut`, `rewardsSpreadDistance`, `rewardsMinContracts`, `lastRewardAmount`, `lastRewardTs`. For sports markets, pregame liquidity rewards may be exposed via `totalPregameRewards`.
 
 ```typescript
 const rewardMarkets = await client.getRewardMarkets();
 for (const m of rewardMarkets) {
-  console.log(`${m.title}: $${(m.totalRewards ?? 0) / 1e6} total rewards`);
+  const rewardTotal = m.totalRewards ?? m.totalPregameRewards ?? 0;
+  console.log(`${m.title}: $${rewardTotal / 1e6} total rewards`);
 }
 ```
 
