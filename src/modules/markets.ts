@@ -191,7 +191,7 @@ export const getMarketOnChain = async (
 /**
  * Fetches all live, tradeable markets from the Alpha REST API.
  *
- * Paginates automatically through all results. Requires an API key.
+ * Fetches the full live market set in a single request. Requires an API key.
  * Returns richer data than on-chain lookup (images, categories, volume, probabilities).
  *
  * @param config - Alpha client config
@@ -203,44 +203,30 @@ export const getLiveMarketsFromApi = async (config: AlphaClientConfig): Promise<
   }
 
   const baseUrl = config.apiBaseUrl ?? DEFAULT_API_BASE_URL;
-  const allMarkets: Market[] = [];
-  let lastEvaluatedKey: string | undefined;
-  let hasMore = true;
+  const url = `${baseUrl}/get-live-markets`;
+  const response = await fetch(url, { headers: { 'x-api-key': config.apiKey } });
 
-  while (hasMore) {
-    const params = new URLSearchParams({ activeOnly: 'true', limit: '300' });
-    if (lastEvaluatedKey) {
-      params.set('lastEvaluatedKey', lastEvaluatedKey);
-    }
-
-    const url = `${baseUrl}/get-live-markets-cached?${params.toString()}`;
-    const response = await fetch(url, { headers: { 'x-api-key': config.apiKey } });
-
-    if (!response.ok) {
-      throw new Error(`Alpha API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    const normalizeApiMarket = (m: any): Market => ({
-      ...m,
-      endTs: m.endTs ? toSeconds(m.endTs) : 0,
-      source: 'api' as const,
-    });
-
-    if (Array.isArray(data)) {
-      allMarkets.push(...data.map(normalizeApiMarket));
-      hasMore = false;
-    } else if (data.markets) {
-      allMarkets.push(...data.markets.map(normalizeApiMarket));
-      lastEvaluatedKey = data.lastEvaluatedKey;
-      hasMore = !!lastEvaluatedKey;
-    } else {
-      hasMore = false;
-    }
+  if (!response.ok) {
+    throw new Error(`Alpha API error: ${response.status} ${response.statusText}`);
   }
 
-  return allMarkets;
+  const data = await response.json();
+
+  const normalizeApiMarket = (m: any): Market => ({
+    ...m,
+    endTs: m.endTs ? toSeconds(m.endTs) : 0,
+    source: 'api' as const,
+  });
+
+  if (Array.isArray(data)) {
+    return data.map(normalizeApiMarket);
+  }
+
+  if (data.markets) {
+    return data.markets.map(normalizeApiMarket);
+  }
+
+  return [];
 };
 
 /**
