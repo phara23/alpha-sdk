@@ -9,11 +9,151 @@ import type {
 } from '../types.js';
 import { decodeGlobalState } from '../utils/state.js';
 import { DEFAULT_API_BASE_URL } from '../constants.js';
-import { getLiveMarkets } from './markets.js';
 
 type EscrowApp = {
   appId: number;
   globalState: EscrowGlobalState;
+};
+
+const ORDERBOOK_READ_MAX_ATTEMPTS = 3;
+const ORDERBOOK_READ_INITIAL_BACKOFF_MS = 150;
+const ORDERBOOK_READ_MAX_BACKOFF_MS = 1000;
+
+const sleep = async (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const getErrorStatus = (error: unknown): number | undefined => {
+  if (!error || typeof error !== 'object') return undefined;
+
+  const candidate = error as {
+    status?: unknown;
+    response?: { status?: unknown };
+  };
+
+  const status = candidate.status ?? candidate.response?.status;
+  return typeof status === 'number' ? status : undefined;
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string') return error;
+  return 'Unknown error';
+};
+
+const isTransientReadError = (error: unknown): boolean => {
+  const status = getErrorStatus(error);
+  if (status === 408 || status === 429) return true;
+  if (typeof status === 'number' && status >= 500) return true;
+
+  const message = getErrorMessage(error).toLowerCase();
+  return [
+    'network request error',
+    'timeout',
+    'timed out',
+    'temporarily unavailable',
+    'service unavailable',
+    'socket hang up',
+    'connection reset',
+    'econnreset',
+    'etimedout',
+    'failed to fetch',
+  ].some((token) => message.includes(token));
+};
+
+const withReadRetry = async <T>(operation: () => Promise<T>): Promise<T> => {
+  let attempt = 1;
+  let backoffMs = ORDERBOOK_READ_INITIAL_BACKOFF_MS;
+
+  while (true) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt >= ORDERBOOK_READ_MAX_ATTEMPTS || !isTransientReadError(error)) {
+        throw error;
+      }
+
+      await sleep(backoffMs);
+      attempt += 1;
+      backoffMs = Math.min(backoffMs * 2, ORDERBOOK_READ_MAX_BACKOFF_MS);
+    }
+  }
+};
+
+const normalizeMarketAppId = (marketAppId: number): number => {
+  if (!Number.isSafeInteger(marketAppId) || marketAppId <= 0) {
+    throw new Error('marketAppId must be a positive integer.');
+  }
+
+  return marketAppId;
+};
+
+const isAlphaMarketState = (state: Record<string, unknown>): boolean =>
+  ['yes_asset_id', 'no_asset_id', 'collateral_asset_id'].some((key) => {
+    const value = state[key];
+    return typeof value === 'number' && Number.isFinite(value) && value > 0;
+  });
+
+const lookupMarketApplicationState = async (
+  config: AlphaClientConfig,
+  marketAppId: number,
+): Promise<Record<string, unknown>> => {
+  const appInfo: any = await withReadRetry(() => config.algodClient.getApplicationByID(marketAppId).do());
+  const rawState = appInfo.params?.globalState ?? appInfo.params?.['global-state'] ?? [];
+  return decodeGlobalState(rawState);
+};
+
+const isKnownAssetId = async (
+  config: AlphaClientConfig,
+  assetId: number,
+): Promise<boolean> => {
+  try {
+    await withReadRetry(() => config.algodClient.getAssetByID(assetId).do());
+    return true;
+  } catch (error) {
+    if (getErrorStatus(error) === 404) {
+      return false;
+    }
+
+    throw error;
+  }
+};
+
+const assertValidMarketAppId = async (
+  config: AlphaClientConfig,
+  marketAppId: number,
+): Promise<number> => {
+  const normalizedMarketAppId = normalizeMarketAppId(marketAppId);
+
+  try {
+    const marketState = await lookupMarketApplicationState(config, normalizedMarketAppId);
+    if (!isAlphaMarketState(marketState)) {
+      throw new Error(
+        `Application ${normalizedMarketAppId} is not an Alpha market app. Pass market.marketAppId instead of a market UUID or asset ID.`,
+      );
+    }
+
+    return normalizedMarketAppId;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Application ')) {
+      throw error;
+    }
+
+    if (getErrorStatus(error) === 404) {
+      if (await isKnownAssetId(config, normalizedMarketAppId)) {
+        throw new Error(
+          `Expected marketAppId but received asset ID ${normalizedMarketAppId}. Use market.marketAppId instead of yesAssetId/noAssetId.`,
+        );
+      }
+
+      throw new Error(
+        `Market app ${normalizedMarketAppId} was not found on-chain. Pass the Alpha market app ID, not a market UUID or asset ID.`,
+      );
+    }
+
+    throw new Error(`Failed to validate marketAppId ${normalizedMarketAppId}: ${getErrorMessage(error)}`);
+  }
 };
 
 /**
@@ -29,11 +169,13 @@ const getAllCreatedApplications = async (
   let hasMore = true;
 
   while (hasMore) {
-    let query = indexerClient.lookupAccountCreatedApplications(address).limit(limit);
-    if (nextToken) {
-      query = query.nextToken(nextToken);
-    }
-    const response: any = await query.do();
+    const response: any = await withReadRetry(async () => {
+      let query = indexerClient.lookupAccountCreatedApplications(address).limit(limit);
+      if (nextToken) {
+        query = query.nextToken(nextToken);
+      }
+      return query.do();
+    });
 
     if (response.applications?.length) {
       applications = [...applications, ...response.applications];
@@ -62,7 +204,7 @@ const fetchApplicationsGlobalState = async (
     applications.map(async (app) => {
       const appId = app.id;
       try {
-        const appInfo: any = await indexerClient.lookupApplications(appId).do();
+        const appInfo: any = await withReadRetry(() => indexerClient.lookupApplications(appId).do());
         const globalState: EscrowGlobalState = {};
         // v3: appInfo.application?.params?.globalState, v2: ['global-state']
         const rawGlobalState = appInfo.application?.params?.globalState ?? appInfo.application?.params?.['global-state'];
@@ -108,8 +250,9 @@ export const getOrderbook = async (
   config: AlphaClientConfig,
   marketAppId: number,
 ): Promise<Orderbook> => {
+  const validatedMarketAppId = await assertValidMarketAppId(config, marketAppId);
   // v3: getApplicationAddress returns Address object, need .toString()
-  const appAddress = algosdk.getApplicationAddress(marketAppId).toString();
+  const appAddress = algosdk.getApplicationAddress(validatedMarketAppId).toString();
   const applications = await getAllCreatedApplications(config.indexerClient, appAddress);
   const appsWithState = await fetchApplicationsGlobalState(config.indexerClient, applications);
 
@@ -158,9 +301,10 @@ export const getOpenOrders = async (
   marketAppId: number,
   walletAddress?: string,
 ): Promise<OpenOrder[]> => {
+  const validatedMarketAppId = await assertValidMarketAppId(config, marketAppId);
   const owner = walletAddress ?? config.activeAddress;
   // v3: getApplicationAddress returns Address object, need .toString()
-  const appAddress = algosdk.getApplicationAddress(marketAppId).toString();
+  const appAddress = algosdk.getApplicationAddress(validatedMarketAppId).toString();
   const applications = await getAllCreatedApplications(config.indexerClient, appAddress);
   const appsWithState = await fetchApplicationsGlobalState(config.indexerClient, applications);
 
@@ -172,7 +316,7 @@ export const getOpenOrders = async (
     )
     .map((o) => ({
       escrowAppId: o.appId,
-      marketAppId,
+      marketAppId: validatedMarketAppId,
       position: (o.globalState.position ?? 0) as 0 | 1,
       side: o.globalState.side ?? 0,
       price: o.globalState.price ?? 0,
