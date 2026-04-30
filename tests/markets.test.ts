@@ -158,6 +158,64 @@ describe('getRewardMarkets', () => {
       'pregame-reward',
       'grouped-parent',
     ]);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.com/api/get-live-markets-cached?limit=500',
+      { headers: { 'x-api-key': 'test-api-key' } },
+    );
+  });
+
+  it('paginates reward markets from the cached API endpoint', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          markets: [
+            {
+              id: 'first-page-reward',
+              title: 'First page reward market',
+              marketAppId: 1,
+              yesAssetId: 11,
+              noAssetId: 12,
+              endTs: 1774323000000,
+              totalRewards: 5_000_000,
+            },
+          ],
+          lastEvaluatedKey: 'next-page',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          markets: [
+            {
+              id: 'second-page-reward',
+              title: 'Second page reward market',
+              marketAppId: 2,
+              yesAssetId: 21,
+              noAssetId: 22,
+              endTs: 1774323000000,
+              totalPregameRewards: 5_000_000,
+            },
+          ],
+        }),
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const markets = await getRewardMarkets({
+      apiKey: 'test-api-key',
+      apiBaseUrl: 'https://example.com/api',
+    } as any);
+
+    expect(markets.map((market) => market.id)).toEqual([
+      'first-page-reward',
+      'second-page-reward',
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://example.com/api/get-live-markets-cached?limit=500&lastEvaluatedKey=next-page',
+      { headers: { 'x-api-key': 'test-api-key' } },
+    );
   });
 });

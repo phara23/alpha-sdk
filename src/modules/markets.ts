@@ -6,6 +6,12 @@ import { DEFAULT_API_BASE_URL, DEFAULT_MARKET_CREATOR_ADDRESS } from '../constan
 /** Normalize a timestamp to seconds. If > 10 billion, assume milliseconds and convert. */
 const toSeconds = (ts: number): number => ts > 10_000_000_000 ? Math.floor(ts / 1000) : ts;
 
+const normalizeApiMarket = (m: any): Market => ({
+  ...m,
+  endTs: m.endTs ? toSeconds(m.endTs) : 0,
+  source: 'api' as const,
+});
+
 /**
  * Groups multi-choice option markets under parent markets.
  *
@@ -212,12 +218,6 @@ export const getLiveMarketsFromApi = async (config: AlphaClientConfig): Promise<
 
   const data = await response.json();
 
-  const normalizeApiMarket = (m: any): Market => ({
-    ...m,
-    endTs: m.endTs ? toSeconds(m.endTs) : 0,
-    source: 'api' as const,
-  });
-
   if (Array.isArray(data)) {
     return data.map(normalizeApiMarket);
   }
@@ -296,7 +296,32 @@ export const getRewardMarkets = async (
     throw new Error('apiKey is required for API-based market fetching. Retrieve an API key from the Alpha Arcade platform via the Account page and pass it to the client.');
   }
 
-  const markets = await getLiveMarketsFromApi(config);
+  const baseUrl = config.apiBaseUrl ?? DEFAULT_API_BASE_URL;
+  const markets: Market[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const queryParams = new URLSearchParams({ limit: '500' });
+    if (cursor) queryParams.set('lastEvaluatedKey', cursor);
+
+    const url = `${baseUrl}/get-live-markets-cached?${queryParams.toString()}`;
+    const response = await fetch(url, { headers: { 'x-api-key': config.apiKey } });
+
+    if (!response.ok) {
+      throw new Error(`Alpha API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const pageMarkets = Array.isArray(data) ? data : data.markets;
+    if (Array.isArray(pageMarkets)) {
+      markets.push(...pageMarkets.map(normalizeApiMarket));
+    }
+
+    cursor = !Array.isArray(data) && typeof data.lastEvaluatedKey === 'string'
+      ? data.lastEvaluatedKey
+      : undefined;
+  } while (cursor);
+
   return markets.filter((market) => hasRewardLiquidity(market));
 };
 
