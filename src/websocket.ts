@@ -50,7 +50,7 @@ const resolveWebSocket = (provided?: unknown): WebSocketConstructor => {
 /**
  * Real-time WebSocket client for Alpha Market platform streams.
  *
- * Connects to `wss://wss.platform.alphaarcade.com` and provides typed,
+ * Connects to `wss://platform-wss.alphaarcade.com` and provides typed,
  * callback-based subscriptions for live market data. No auth required.
  *
  * @example
