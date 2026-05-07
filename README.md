@@ -360,7 +360,7 @@ for (const m of rewardMarkets) {
 
 Real-time data streams via WebSocket. No API key or auth required. Replaces polling with push-based updates.
 
-The SDK connects to the public platform websocket at `wss://wss.platform.alphaarcade.com`. The first
+The SDK connects to the public platform websocket at `wss://platform-wss.alphaarcade.com`. The first
 subscription is sent in the connection query string, and any later subscribe or unsubscribe calls use the
 server's control-message envelope:
 

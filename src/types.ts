@@ -437,7 +437,7 @@ export type EscrowGlobalState = {
 
 /** Configuration for AlphaWebSocket */
 export type AlphaWebSocketConfig = {
-  /** WebSocket URL override (default: wss://wss.platform.alphaarcade.com) */
+  /** WebSocket URL override (default: wss://platform-wss.alphaarcade.com) */
   url?: string;
   /** Enable auto-reconnect on unexpected disconnect (default: true) */
   reconnect?: boolean;
