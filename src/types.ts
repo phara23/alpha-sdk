@@ -60,9 +60,21 @@ export type Market = {
   totalPregameRewards?: number;
   rewardsPaidOut?: number;
   rewardsSpreadDistance?: number;
+  pregameRewardsSpreadDistance?: number;
   rewardsMinContracts?: number;
   lastRewardAmount?: number;
   lastRewardTs?: number;
+  midpoint?: number;
+  currentMidpoint?: number;
+  currentMidpointLiquidity?: number;
+  livePolyYesAsk?: number;
+  livePolyNoAsk?: number;
+  strongestQualifiedYesBid?: number;
+  strongestQualifiedNoBid?: number;
+  clobYesTokenId?: string;
+  clobNoTokenId?: string;
+  seriesId?: string;
+  gameStartTimeMs?: number;
   /** Data source: 'onchain' or 'api' */
   source?: 'onchain' | 'api';
   [key: string]: unknown;
@@ -81,9 +93,21 @@ export type MarketOption = {
   totalPregameRewards?: number;
   rewardsPaidOut?: number;
   rewardsSpreadDistance?: number;
+  pregameRewardsSpreadDistance?: number;
   rewardsMinContracts?: number;
   lastRewardAmount?: number;
   lastRewardTs?: number;
+  midpoint?: number;
+  currentMidpoint?: number;
+  currentMidpointLiquidity?: number;
+  livePolyYesAsk?: number;
+  livePolyNoAsk?: number;
+  strongestQualifiedYesBid?: number;
+  strongestQualifiedNoBid?: number;
+  clobYesTokenId?: string;
+  clobNoTokenId?: string;
+  seriesId?: string;
+  gameStartTimeMs?: number;
   [key: string]: unknown;
 };
 
@@ -328,6 +352,169 @@ export type AggregatedOrderbook = {
  * Matches the REST `/get-full-orderbook` response and `orderbook_changed.orderbook`.
  */
 export type FullOrderbookSnapshot = Record<string, WsOrderbookApp>;
+
+export type LiquiditySource = 'alpha' | 'polymarket';
+
+export type LiquidityExecution = 'escrow' | 'crossVenue';
+
+export type PositionSide = 'yes' | 'no';
+
+export type BookEntrySide = 'bid' | 'ask';
+
+export type NativeLiquidityEntry = {
+  price: number;
+  quantity: number;
+  total: number;
+  escrowAppId: number;
+  owner: string;
+  source: 'alpha';
+  execution: 'escrow';
+  position: PositionSide;
+  side: BookEntrySide;
+};
+
+export type RoutedLiquidityEntry = {
+  price: number;
+  quantity: number;
+  total: number;
+  source: 'polymarket';
+  execution: 'crossVenue';
+  position: PositionSide;
+  side: BookEntrySide;
+  polyTokenId: string;
+  displayPriceMicro: number;
+  polySourcePriceMicro: number;
+  notionalMicroUsdc: number;
+};
+
+export type ExecutableLiquidityEntry = NativeLiquidityEntry | RoutedLiquidityEntry;
+
+export type ExecutableOrderbookSide = {
+  bids: ExecutableLiquidityEntry[];
+  asks: ExecutableLiquidityEntry[];
+};
+
+export type RoutedOrderbookData = {
+  yes: ExecutableOrderbookSide;
+  no: ExecutableOrderbookSide;
+};
+
+export type MergedRoutedOrderbookData = RoutedOrderbookData & {
+  asks: ExecutableLiquidityEntry[];
+  bids: ExecutableLiquidityEntry[];
+  spread: number;
+};
+
+export type RoutedOrderbookApp = {
+  native: WsOrderbookApp;
+  routed: RoutedOrderbookData;
+  merged: MergedRoutedOrderbookData;
+};
+
+export type RoutedOrderbookResponse = {
+  marketId: string;
+  slug?: string;
+  version: number;
+  generatedAt: number;
+  warnings?: string[];
+  orderbook: Record<string, RoutedOrderbookApp>;
+  config: {
+    maxNotionalMicroUsdc: number;
+    aaMarginBps: number;
+  };
+};
+
+export type CrossVenueExecConfig = {
+  ok: boolean;
+  matcherAppId: number;
+  mmAddress: string;
+  usdcAssetId: number;
+  feeAddress: string;
+  escrowPreludePayMicroAlgo: number;
+  matcherGroupFeeMicroAlgo: number;
+  validityWindowRounds: number;
+  maxNotionalMicroUsdc: number;
+  avgPriceToleranceMicro: number;
+  absoluteCeilingOffsetMicro: number;
+  aaMarginBps: number;
+};
+
+export type CrossVenueRfqQuote = {
+  ok: boolean;
+  quoteId?: string;
+  expiresAt?: number;
+  marketId?: string;
+  marketAppId?: number;
+  userPosition?: Position;
+  side?: OrderSide;
+  quantity?: number;
+  polyTokenId?: string;
+  displayPriceMicro?: number;
+  polySourcePriceMicro?: number;
+  notionalMicroUsdc?: number;
+  thresholdMicro?: number | null;
+  takerSlippageMicro?: number;
+  takerSlippageMinMicro?: number;
+  takerSlippageMaxMicro?: number;
+  mmNeedsOptIn?: boolean;
+  userNeedsOptIn?: boolean;
+  userReceivesAssetId?: number;
+  mmReceivesAssetId?: number;
+  yesAssetId?: number;
+  noAssetId?: number;
+  feeBase?: number;
+  quoteTtlMs?: number;
+  requiresWalletSignature?: boolean;
+  source?: 'polymarket';
+  execution?: 'crossVenue';
+  reason?: string;
+  detail?: string;
+};
+
+export type RequestRfqQuoteParams = {
+  marketId: string;
+  marketAppId?: number;
+  userAddress?: string;
+  userPosition: Position;
+  isBuying: boolean;
+  quantity: number;
+  takerSlippageMicro?: number;
+};
+
+export type SubmitRoutedOrderParams = {
+  userAddress: string;
+  marketId: string;
+  marketAppId: number;
+  userPosition: Position;
+  isBuying: boolean;
+  quantity: number;
+  polyQuotedPriceMicro: number;
+  yesAssetId: number;
+  noAssetId: number;
+  signedUserTxns: string[];
+  suggestedParams: {
+    firstValid: number;
+    lastValid: number;
+    genesisHash: string;
+    genesisID: string;
+    fee: number;
+    minFee?: number;
+  };
+  nonce: string;
+  mmNeedsOptIn: boolean;
+  userNeedsOptIn: boolean;
+  crossVenueTakerSlippageMicro: number;
+};
+
+export type SubmitRoutedOrderResult = {
+  ok?: boolean;
+  success?: boolean;
+  txId?: string;
+  txIds?: string[];
+  freshAvgPriceMicro?: number;
+  matchedPriceMicro?: number;
+  [key: string]: unknown;
+};
 
 // ============================================
 // Position Types

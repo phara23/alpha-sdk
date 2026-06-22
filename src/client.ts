@@ -21,6 +21,12 @@ import type {
   OpenOrder,
   WalletPosition,
   Market,
+  RoutedOrderbookResponse,
+  CrossVenueExecConfig,
+  CrossVenueRfqQuote,
+  RequestRfqQuoteParams,
+  SubmitRoutedOrderParams,
+  SubmitRoutedOrderResult,
 } from './types.js';
 import {
   createLimitOrder,
@@ -38,10 +44,16 @@ import {
 } from './modules/positions.js';
 import {
   getFullOrderbookFromApi,
+  getRoutedOrderbookFromApi,
   getOrderbook,
   getOpenOrders,
   getWalletOrdersFromApi,
 } from './modules/orderbook.js';
+import {
+  getCrossVenueConfig,
+  requestRfqQuote,
+  submitRoutedOrder,
+} from './modules/crossVenue.js';
 import { DEFAULT_API_BASE_URL } from './constants.js';
 import {
   getLiveMarkets as fetchLiveMarkets,
@@ -284,6 +296,31 @@ export class AlphaClient {
    */
   async getFullOrderbookFromApi(marketId: string): Promise<FullOrderbookSnapshot> {
     return getFullOrderbookFromApi(this.config, marketId);
+  }
+
+  /**
+   * Fetches the API-backed orderbook with source-tagged routed Polymarket liquidity.
+   *
+   * Routed entries are executable only through cross-venue RFQ/submit flows and
+   * must not be passed into AA-only matching helpers that require escrowAppId.
+   */
+  async getRoutedOrderbook(marketId: string): Promise<RoutedOrderbookResponse> {
+    return getRoutedOrderbookFromApi(this.config, marketId);
+  }
+
+  /** Fetches public cross-venue execution config used by routed quote builders. */
+  async getCrossVenueConfig(): Promise<CrossVenueExecConfig> {
+    return getCrossVenueConfig(this.config);
+  }
+
+  /** Requests a routed RFQ quote. Submit still revalidates price before MM signs. */
+  async requestRfqQuote(params: RequestRfqQuoteParams): Promise<CrossVenueRfqQuote> {
+    return requestRfqQuote(this.config, params);
+  }
+
+  /** Submits a wallet-signed routed order to the backend for final validation and MM signing. */
+  async submitRoutedOrder(params: SubmitRoutedOrderParams): Promise<SubmitRoutedOrderResult> {
+    return submitRoutedOrder(this.config, params);
   }
 
   /**
