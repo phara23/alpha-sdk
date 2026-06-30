@@ -86,6 +86,7 @@ The repo includes runnable examples (use `npx tsx examples/<script>.ts`). Script
 | `split-merge.ts` | Split USDC into YES/NO and merge back |
 | `simple-trading-bot.ts` | Example bot that scans markets and places market orders |
 | `place-rfq-trade.ts` | Test cross-venue RFQ quote logic for a market |
+| `get-orderbook.ts` | Retrieves and logs combined routed orderbook |
 
 ## API Reference
 
