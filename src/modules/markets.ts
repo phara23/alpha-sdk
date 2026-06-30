@@ -1,16 +1,52 @@
 import * as algosdk from 'algosdk';
-import type { AlphaClientConfig, Market, MarketGlobalState } from '../types.js';
+import type { AlphaClientConfig, Market, MarketGlobalState, MarketOption } from '../types.js';
 import { decodeGlobalState } from '../utils/state.js';
 import { DEFAULT_API_BASE_URL, DEFAULT_MARKET_CREATOR_ADDRESS } from '../constants.js';
 
 /** Normalize a timestamp to seconds. If > 10 billion, assume milliseconds and convert. */
 const toSeconds = (ts: number): number => ts > 10_000_000_000 ? Math.floor(ts / 1000) : ts;
 
-const normalizeApiMarket = (m: any): Market => ({
-  ...m,
-  endTs: m.endTs ? toSeconds(m.endTs) : 0,
-  source: 'api' as const,
+const normalizeApiOption = (option: Record<string, unknown>): MarketOption => ({
+  ...(option as MarketOption),
+  title: String(option.title ?? option.label ?? option.topic ?? ''),
+  yesProb: Number(option.yesProb ?? 0),
+  noProb: Number(option.noProb ?? 0),
 });
+
+const normalizeApiMarket = (m: Record<string, unknown>): Market => {
+  const options = Array.isArray(m.options)
+    ? m.options.map((option) => normalizeApiOption(option as Record<string, unknown>))
+    : undefined;
+
+  return {
+    ...(m as Market),
+    title: String(m.title ?? m.topic ?? ''),
+    endTs: m.endTs ? toSeconds(Number(m.endTs)) : 0,
+    source: 'api' as const,
+    ...(options ? { options } : {}),
+  };
+};
+
+const isMultiOptionParentStub = (market: Record<string, unknown>): boolean =>
+  !market.marketAppId &&
+  !(Array.isArray(market.options) && market.options.length > 0);
+
+const fetchLiveMarketById = async (
+  config: AlphaClientConfig,
+  marketId: string,
+): Promise<Market | null> => {
+  const baseUrl = config.apiBaseUrl ?? DEFAULT_API_BASE_URL;
+  const response = await fetch(`${baseUrl}/get-live-markets`, {
+    headers: { 'x-api-key': config.apiKey! },
+  });
+
+  if (!response.ok) return null;
+
+  const data = await response.json();
+  const markets = Array.isArray(data) ? data : data.markets ?? [];
+  const match = markets.find((market: Record<string, unknown>) => market.id === marketId);
+  return match ? normalizeApiMarket(match) : null;
+};
 
 /**
  * Groups multi-choice option markets under parent markets.
@@ -255,11 +291,15 @@ export const getMarketFromApi = async (
   }
 
   const data = await response.json();
-  const market = data.market ?? data ?? null;
-  if (market) {
-    market.source = 'api';
-    if (market.endTs) market.endTs = toSeconds(market.endTs);
+  const rawMarket = data.market ?? data ?? null;
+  if (!rawMarket) return null;
+
+  let market = normalizeApiMarket(rawMarket);
+  if (isMultiOptionParentStub(rawMarket)) {
+    const enriched = await fetchLiveMarketById(config, marketId);
+    if (enriched) market = enriched;
   }
+
   return market;
 };
 

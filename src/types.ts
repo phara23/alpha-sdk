@@ -469,6 +469,19 @@ export type CrossVenueRfqQuote = {
   execution?: 'crossVenue';
   reason?: string;
   detail?: string;
+  /** Base64-encoded unsigned user-leg transactions (opt-in, pay, xfer, create_escrow). */
+  unsignedUserTxns?: string[];
+  /** Pinned algod params — pass verbatim to submitRoutedOrder. */
+  suggestedParams?: {
+    firstValid: number;
+    lastValid: number;
+    genesisHash: string;
+    genesisID: string;
+    fee: number;
+    minFee?: number;
+  };
+  /** 8-byte nonce (base64) embedded in txn notes — pass verbatim to submitRoutedOrder. */
+  nonce?: string;
 };
 
 export type RequestRfqQuoteParams = {
