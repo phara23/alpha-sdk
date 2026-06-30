@@ -23,12 +23,13 @@
  */
 import dotenv from 'dotenv';
 import algosdk from 'algosdk';
-import { AlphaClient, type Market, type MarketOption, type Position } from '../src/index.js';
+import { AlphaClient, resolveRfqTradeTarget, type Position } from '../src/index.js';
 
 dotenv.config();
 
 const API_KEY = process.env.ALPHA_API_KEY;
 const MARKET_ID = process.env.MARKET_ID;
+// Multi-option markets only: set either OPTION_ID or MARKET_APP_ID to pick which child line to trade.
 const OPTION_ID = process.env.OPTION_ID?.trim();
 const MARKET_APP_ID_INPUT = process.env.MARKET_APP_ID?.trim();
 const TEST_MNEMONIC = process.env.TEST_MNEMONIC;
@@ -39,145 +40,37 @@ const TAKER_SLIPPAGE_MICRO = process.env.TAKER_SLIPPAGE_MICRO
   ? Number(process.env.TAKER_SLIPPAGE_MICRO)
   : undefined;
 
-type TradeTarget = {
-  quoteMarketId: string;
-  submitMarketId: string;
-  marketAppId: number;
-  label: string;
-};
-
-const parsePosition = (value: string): Position => {
-  if (value === 'yes') return 1;
-  if (value === 'no') return 0;
-  throw new Error('POSITION must be yes or no.');
-};
-
-const parseIsBuying = (value: string): boolean => {
-  if (value === 'buy') return true;
-  if (value === 'sell') return false;
-  throw new Error('SIDE must be buy or sell.');
-};
-
-const parseMarketAppId = (value: string | undefined): number | undefined => {
-  if (!value) return undefined;
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new Error('MARKET_APP_ID must be a positive integer.');
-  }
-  return parsed;
-};
-
-const getParentId = (market: Market): string | undefined => {
-  const parentId = (market as { parentId?: unknown }).parentId;
-  return typeof parentId === 'string' && parentId.trim() ? parentId.trim() : undefined;
-};
-
-const getMarketLabel = (market: Market): string =>
-  market.title || String((market as { topic?: unknown }).topic ?? market.id);
-
-const getOptionLabel = (option: MarketOption): string =>
-  option.title || String((option as { label?: unknown }).label ?? option.id);
-
-const formatOptionLine = (option: MarketOption): string =>
-  `  - ${getOptionLabel(option)} (OPTION_ID=${option.id}, MARKET_APP_ID=${option.marketAppId})`;
-
-const resolveTradeTarget = (
-  market: Market,
-  optionId?: string,
-  marketAppId?: number,
-): TradeTarget => {
-  const parentId = getParentId(market);
-  if (parentId && market.marketAppId) {
-    return {
-      quoteMarketId: parentId,
-      submitMarketId: market.id,
-      marketAppId: market.marketAppId,
-      label: getMarketLabel(market),
-    };
-  }
-
-  const options = market.options ?? [];
-  if (options.length === 0) {
-    if (!market.marketAppId) {
-      throw new Error(
-        `Market "${getMarketLabel(market)}" has no marketAppId. For multi-option markets, set OPTION_ID or MARKET_APP_ID.`,
-      );
-    }
-    return {
-      quoteMarketId: market.id,
-      submitMarketId: market.id,
-      marketAppId: market.marketAppId,
-      label: getMarketLabel(market),
-    };
-  }
-
-  let selected: MarketOption | undefined;
-  if (optionId) {
-    selected = options.find((option) => option.id === optionId);
-    if (!selected) {
-      throw new Error(
-        `OPTION_ID ${optionId} was not found on "${getMarketLabel(market)}". Available options:\n${options.map(formatOptionLine).join('\n')}`,
-      );
-    }
-  } else if (marketAppId != null) {
-    selected = options.find((option) => option.marketAppId === marketAppId);
-    if (!selected) {
-      throw new Error(
-        `MARKET_APP_ID ${marketAppId} was not found on "${getMarketLabel(market)}". Available options:\n${options.map(formatOptionLine).join('\n')}`,
-      );
-    }
-  } else if (options.length === 1) {
-    selected = options[0];
-  } else {
-    throw new Error(
-      `Market "${getMarketLabel(market)}" has ${options.length} options. Set OPTION_ID or MARKET_APP_ID:\n${options.map(formatOptionLine).join('\n')}`,
-    );
-  }
-
-  return {
-    quoteMarketId: market.id,
-    submitMarketId: selected.id,
-    marketAppId: selected.marketAppId,
-    label: getOptionLabel(selected),
-  };
-};
-
-const resolveAccountFromMnemonic = (mnemonic: string | undefined): {
-  account: ReturnType<typeof algosdk.mnemonicToSecretKey>;
-  userAddress: string;
-} => {
-  if (!mnemonic?.trim()) {
-    throw new Error('TEST_MNEMONIC is required.');
-  }
-
-  try {
-    const account = algosdk.mnemonicToSecretKey(mnemonic.trim());
-    const userAddress = account.addr?.toString() ?? null;
-    if (!userAddress) {
-      throw new Error('Mnemonic is wrong.');
-    }
-    return { account, userAddress };
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Mnemonic is wrong.') {
-      throw error;
-    }
-    throw new Error('Mnemonic is wrong.');
-  }
-};
-
 const main = async (): Promise<void> => {
   if (!API_KEY) throw new Error('ALPHA_API_KEY is required.');
+  if (!TEST_MNEMONIC) throw new Error('TEST_MNEMONIC is required.');
   if (!MARKET_ID) throw new Error('MARKET_ID is required.');
   if (!Number.isFinite(QUANTITY) || QUANTITY <= 0) throw new Error('QUANTITY must be positive.');
   if (OPTION_ID && MARKET_APP_ID_INPUT) {
     throw new Error('Set only one of OPTION_ID or MARKET_APP_ID.');
   }
 
-  const position = parsePosition(POSITION_INPUT);
-  const isBuying = parseIsBuying(SIDE_INPUT);
-  const marketAppId = parseMarketAppId(MARKET_APP_ID_INPUT);
+  if (POSITION_INPUT !== 'yes' && POSITION_INPUT !== 'no') {
+    throw new Error('POSITION must be yes or no.');
+  }
+  if (SIDE_INPUT !== 'buy' && SIDE_INPUT !== 'sell') {
+    throw new Error('SIDE must be buy or sell.');
+  }
 
-  const { account, userAddress } = resolveAccountFromMnemonic(TEST_MNEMONIC);
+  const position: Position = POSITION_INPUT === 'yes' ? 1 : 0;
+  const isBuying = SIDE_INPUT === 'buy';
+
+  const marketAppId = MARKET_APP_ID_INPUT
+    ? (() => {
+      const parsed = Number(MARKET_APP_ID_INPUT);
+      if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+        throw new Error('MARKET_APP_ID must be a positive integer.');
+      }
+      return parsed;
+    })()
+    : undefined;
+
+  const account = algosdk.mnemonicToSecretKey(TEST_MNEMONIC);
+  const userAddress = account.addr.toString();
   console.log('Trading wallet:', userAddress);
 
   const algodClient = new algosdk.Algodv2('', 'https://mainnet-api.algonode.cloud', 443);
@@ -196,8 +89,8 @@ const main = async (): Promise<void> => {
   const market = await client.getMarket(MARKET_ID);
   if (!market) throw new Error(`Could not resolve market for MARKET_ID=${MARKET_ID}.`);
 
-  const tradeTarget = resolveTradeTarget(market, OPTION_ID, marketAppId);
-  console.log(`Market: ${getMarketLabel(market)}`);
+  const tradeTarget = resolveRfqTradeTarget(market, { optionId: OPTION_ID, marketAppId });
+  console.log(`Market: ${market.title}`);
   console.log(`Trading option: ${tradeTarget.label}`);
   console.log(`quoteMarketId=${tradeTarget.quoteMarketId} submitMarketId=${tradeTarget.submitMarketId} marketAppId=${tradeTarget.marketAppId}`);
 
