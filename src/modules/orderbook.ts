@@ -6,6 +6,7 @@ import type {
   OrderbookEntry,
   EscrowGlobalState,
   OpenOrder,
+  RoutedOrderbookResponse,
 } from '../types.js';
 import { decodeGlobalState } from '../utils/state.js';
 import { DEFAULT_API_BASE_URL } from '../constants.js';
@@ -419,4 +420,30 @@ export const getFullOrderbookFromApi = async (
   }
 
   return response.json() as Promise<FullOrderbookSnapshot>;
+};
+
+/**
+ * Fetches the API-backed orderbook plus source-tagged routed Polymarket liquidity.
+ *
+ * Native AA orders remain under `native`; executable routed levels are tagged with
+ * `source: "polymarket"` and `execution: "crossVenue"` so callers do not pass them
+ * into AA-only escrow matching helpers.
+ */
+export const getRoutedOrderbookFromApi = async (
+  config: AlphaClientConfig,
+  marketId: string,
+): Promise<RoutedOrderbookResponse> => {
+  if (!config.apiKey) {
+    throw new Error('apiKey is required for routed orderbook fetching. Retrieve an API key from the Alpha Arcade platform via the Account page and pass it to the client.');
+  }
+
+  const baseUrl = config.apiBaseUrl ?? DEFAULT_API_BASE_URL;
+  const url = `${baseUrl}/get-routed-orderbook?marketId=${encodeURIComponent(marketId)}`;
+  const response = await fetch(url, { headers: { 'x-api-key': config.apiKey } });
+
+  if (!response.ok) {
+    throw new Error(`Alpha API error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json() as Promise<RoutedOrderbookResponse>;
 };

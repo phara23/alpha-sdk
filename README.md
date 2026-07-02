@@ -1,6 +1,6 @@
 # @alpha-arcade/sdk
 
-TypeScript SDK for trading on **Alpha Market** — Algorand prediction markets.
+TypeScript SDK for trading on **Alpha Market** - Algorand prediction markets.
 
 Place orders, manage positions, read orderbooks from the API or chain, and build automated trading bots.
 
@@ -14,7 +14,7 @@ npm install @alpha-arcade/sdk algosdk @algorandfoundation/algokit-utils
 
 ## Getting an API key
 
-An API key is **optional**. Without it, you can still fetch markets on-chain, place orders, and use most SDK features. With an API key, you get richer market data, liquidity rewards information, and wallet order lookups, and more.
+An API key is **optional**. Without it, you can still fetch markets on-chain, place orders, and use most SDK features. With an API key, you get richer market data, liquidity rewards information, wallet order lookups, routed liquidity, and RFQ endpoints.
 
 To get an API key:
 
@@ -73,7 +73,7 @@ console.log(`Order created! Escrow app ID: ${result.escrowAppId}`);
 
 ## Examples
 
-The repo includes runnable examples (use `npx tsx examples/<script>.ts`). Scripts that call the API (e.g. `get-orders.ts`, `get-reward-markets.ts`) need `ALPHA_API_KEY` in your `.env` — see [Getting an API key](#getting-an-api-key). Trading examples also need `TEST_MNEMONIC`.
+The repo includes runnable examples (use `npx tsx examples/<script>.ts`). Scripts that call the API (e.g. `get-orders.ts`, `get-reward-markets.ts`) need `ALPHA_API_KEY` in your `.env` - see [Getting an API key](#getting-an-api-key). Trading examples also need `TEST_MNEMONIC`.
 
 | Script | Description |
 |--------|-------------|
@@ -85,6 +85,8 @@ The repo includes runnable examples (use `npx tsx examples/<script>.ts`). Script
 | `cancel-order.ts` | Cancel an open order |
 | `split-merge.ts` | Split USDC into YES/NO and merge back |
 | `simple-trading-bot.ts` | Example bot that scans markets and places market orders |
+| `place-rfq-trade.ts` | Test cross-venue RFQ quote logic for a market |
+| `get-orderbook.ts` | Retrieves and logs combined routed orderbook |
 
 ## API Reference
 
@@ -158,7 +160,7 @@ const result = await client.cancelOrder({
 
 #### `amendOrder(params)`
 
-Edits an existing unfilled order in-place — cheaper and faster than cancel + recreate. The escrow contract adjusts collateral automatically: sends you a refund if the new value is lower, or requires extra funds (sent automatically) if higher.
+Edits an existing unfilled order in-place - cheaper and faster than cancel + recreate. The escrow contract adjusts collateral automatically: sends you a refund if the new value is lower, or requires extra funds (sent automatically) if higher.
 
 Only works on orders with zero quantity filled.
 
@@ -281,6 +283,103 @@ for (const [appId, book] of Object.entries(snapshot)) {
 }
 ```
 
+#### `getRoutedOrderbook(marketId)`
+
+Fetches the API-backed orderbook with native Alpha Arcade liquidity and routed Polymarket liquidity. Requires `apiKey`.
+
+Use this when you want to show liquidity that can be matched on demand through the cross-venue flow. The native book remains unchanged under `native`; routed entries are source-tagged so they cannot be confused with real escrow orders.
+
+```typescript
+const routed = await client.getRoutedOrderbook('market-uuid-here');
+
+for (const [appId, routedBook] of Object.entries(routed.orderbook)) {
+  console.log(`App ${appId}`);
+
+  for (const ask of routedBook.merged.asks) {
+    if (ask.source === 'alpha') {
+      console.log(`AA ask ${ask.escrowAppId}: $${ask.price / 1e6}`);
+    } else {
+      console.log(
+        `Routed ask via ${ask.polyTokenId}: display $${ask.displayPriceMicro / 1e6}, source $${ask.polySourcePriceMicro / 1e6}`,
+      );
+    }
+  }
+}
+```
+
+Routed entries have `source: 'polymarket'` and `execution: 'crossVenue'`. They intentionally do not have `escrowAppId`, because the escrow does not exist until the cross-venue transaction group is signed and submitted.
+
+Do not pass routed entries into `createMarketOrder()` or `calculateMatchingOrders()`. Those functions only match existing Alpha Arcade escrow orders. Use `requestRfqQuote()` for routed liquidity.
+
+#### Cross-venue config and RFQ quotes
+
+These methods wrap the routed-liquidity API. They require `apiKey`.
+
+```typescript
+const config = await client.getCrossVenueConfig();
+console.log(`Cross-venue matcher app: ${config.matcherAppId}`);
+
+const quote = await client.requestRfqQuote({
+  marketId: 'market-uuid-here',
+  marketAppId: 123456789,      // recommended for multi-choice markets
+  userAddress: account.addr.toString(),
+  userPosition: 1,             // 1 = YES, 0 = NO
+  isBuying: true,
+  quantity: 2_000_000,         // 2 shares
+});
+
+if (!quote.ok) {
+  console.log(`No routed quote: ${quote.reason} ${quote.detail ?? ''}`);
+} else {
+  console.log(`Quote id: ${quote.quoteId}`);
+  console.log(`Display price: $${quote.displayPriceMicro! / 1e6}`);
+  console.log(`External source price: $${quote.polySourcePriceMicro! / 1e6}`);
+  console.log(`Expires at: ${new Date(quote.expiresAt!).toISOString()}`);
+  console.log(`User needs opt-in: ${quote.userNeedsOptIn}`);
+  console.log(`MM needs opt-in: ${quote.mmNeedsOptIn}`);
+}
+```
+
+`requestRfqQuote()` is a fresh quote for display and transaction construction. It is not final fill authorization. The backend re-fetches Polymarket liquidity and re-runs cross-venue validation when `submitRoutedOrder()` is called, then byte-compares the wallet-signed user legs before the market-maker signs.
+
+#### `submitRoutedOrder(params)`
+
+Submits a wallet-signed cross-venue order to the backend for final validation, market-maker signing, and on-chain submission.
+
+```typescript
+const result = await client.submitRoutedOrder({
+  userAddress: account.addr.toString(),
+  marketId: 'market-uuid-here',
+  marketAppId: 123456789,
+  userPosition: 1,
+  isBuying: true,
+  quantity: quote.quantity!,
+  polyQuotedPriceMicro: quote.displayPriceMicro!,
+  yesAssetId: quote.yesAssetId!,
+  noAssetId: quote.noAssetId!,
+  mmNeedsOptIn: quote.mmNeedsOptIn ?? false,
+  userNeedsOptIn: quote.userNeedsOptIn ?? false,
+  crossVenueTakerSlippageMicro: quote.takerSlippageMicro!,
+  suggestedParams: {
+    firstValid: 0,
+    lastValid: 0,
+    genesisHash: 'base64-genesis-hash',
+    genesisID: 'mainnet-v1.0',
+    fee: 0,
+    minFee: 1000,
+  },
+  nonce: 'base64-8-byte-nonce',
+  signedUserTxns: [
+    'base64-signed-user-opt-in-or-payment',
+    'base64-signed-user-funding',
+    'base64-signed-user-create-escrow',
+    'base64-signed-user-propose-match',
+  ],
+});
+```
+
+The SDK currently provides the HTTP wrapper for submit. Your wallet integration must build the canonical cross-venue group and collect the user signatures that `submit-for-wallet` expects. If the backend sees a stale price, wrong asset id, unexpected opt-in state, or any byte mismatch in the user-signed transactions, it rejects before the market-maker signs.
+
 #### `getOpenOrders(marketAppId, walletAddress?)`
 
 Gets open orders for a wallet on a specific market (from on-chain data).
@@ -313,12 +412,12 @@ Markets can be loaded **on-chain** (default, no API key) or via the **REST API**
 
 #### `getLiveMarkets()` / `getMarket(marketId)`
 
-Smart defaults — uses the API if `apiKey` is set, otherwise reads from chain.
+Smart defaults - uses the API if `apiKey` is set, otherwise reads from chain.
 
 ```typescript
 const markets = await client.getLiveMarkets();
 for (const m of markets) {
-  console.log(`${m.title} — App ID: ${m.marketAppId}, source: ${m.source}`);
+  console.log(`${m.title} - App ID: ${m.marketAppId}, source: ${m.source}`);
 }
 
 const market = await client.getMarket('12345'); // app ID string for on-chain, UUID for API
@@ -384,10 +483,10 @@ Supported public streams:
 ```typescript
 import { AlphaWebSocket } from '@alpha-arcade/sdk';
 
-// Node.js 22+ and browsers — native WebSocket, nothing extra needed
+// Node.js 22+ and browsers - native WebSocket, nothing extra needed
 const ws = new AlphaWebSocket();
 
-// Node.js < 22 — install `ws` and pass it in:
+// Node.js < 22 - install `ws` and pass it in:
 // npm install ws
 import WebSocket from 'ws';
 const ws = new AlphaWebSocket({ WebSocket });
@@ -416,7 +515,7 @@ ws.subscribeLiveMarkets((event) => {
 
 #### `subscribeMarket(slug, callback)`
 
-Receive change events for a single market. Uses the market **slug** (not `marketAppId`) — see note on `subscribeOrderbook` below.
+Receive change events for a single market. Uses the market **slug** (not `marketAppId`) - see note on `subscribeOrderbook` below.
 
 ```typescript
 ws.subscribeMarket('will-btc-hit-100k', (event) => {

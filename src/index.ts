@@ -32,6 +32,23 @@ export type {
   OrderbookSide,
   Orderbook,
   FullOrderbookSnapshot,
+  LiquiditySource,
+  LiquidityExecution,
+  PositionSide,
+  BookEntrySide,
+  NativeLiquidityEntry,
+  RoutedLiquidityEntry,
+  ExecutableLiquidityEntry,
+  ExecutableOrderbookSide,
+  RoutedOrderbookData,
+  MergedRoutedOrderbookData,
+  RoutedOrderbookApp,
+  RoutedOrderbookResponse,
+  CrossVenueExecConfig,
+  CrossVenueRfqQuote,
+  RequestRfqQuoteParams,
+  SubmitRoutedOrderParams,
+  SubmitRoutedOrderResult,
   AggregatedOrderbookEntry,
   AggregatedOrderbookSide,
   AggregatedOrderbook,
@@ -60,9 +77,13 @@ export type {
 
 // Market discovery
 export { getMarketsOnChain, getMarketOnChain, getLiveMarketsFromApi, getMarketFromApi } from './modules/markets.js';
+export { getRoutedOrderbookFromApi } from './modules/orderbook.js';
+export { getCrossVenueConfig, requestRfqQuote, submitRoutedOrder } from './modules/crossVenue.js';
 export { DEFAULT_API_BASE_URL, DEFAULT_WSS_BASE_URL, DEFAULT_MARKET_CREATOR_ADDRESS } from './constants.js';
 
 // Utility functions (for advanced users)
 export { calculateFee, calculateFeeFromTotal } from './utils/fees.js';
 export { calculateMatchingOrders } from './utils/matching.js';
+export { resolveRfqTradeTarget } from './utils/rfq.js';
+export type { RfqTradeTarget, ResolveRfqTradeTargetParams } from './utils/rfq.js';
 export { decodeGlobalState, getMarketGlobalState, getEscrowGlobalState, checkAssetOptIn } from './utils/state.js';
