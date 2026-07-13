@@ -27,6 +27,10 @@ import type {
   RequestRfqQuoteParams,
   SubmitRoutedOrderParams,
   SubmitRoutedOrderResult,
+  ComboRfqQuote,
+  RequestComboRfqQuoteParams,
+  SubmitComboRfqResult,
+  SubmitComboRfqWalletParams,
 } from './types.js';
 import {
   createLimitOrder,
@@ -54,6 +58,10 @@ import {
   requestRfqQuote,
   submitRoutedOrder,
 } from './modules/crossVenue.js';
+import {
+  requestComboRfqQuote,
+  submitComboRfqWallet,
+} from './modules/comboRfq.js';
 import { DEFAULT_API_BASE_URL } from './constants.js';
 import {
   getLiveMarkets as fetchLiveMarkets,
@@ -321,6 +329,16 @@ export class AlphaClient {
   /** Submits a wallet-signed routed order to the backend for final validation and MM signing. */
   async submitRoutedOrder(params: SubmitRoutedOrderParams): Promise<SubmitRoutedOrderResult> {
     return submitRoutedOrder(this.config, params);
+  }
+
+  /** Requests a competitive arbitrary-combo RFQ quote. */
+  async requestComboRfqQuote(params: RequestComboRfqQuoteParams): Promise<ComboRfqQuote> {
+    return requestComboRfqQuote(this.config, params);
+  }
+
+  /** Submits wallet-signed combo RFQ user legs for maker final look and chain execution. */
+  async submitComboRfqWallet(params: SubmitComboRfqWalletParams): Promise<SubmitComboRfqResult> {
+    return submitComboRfqWallet(this.config, params);
   }
 
   /**
