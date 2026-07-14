@@ -12,7 +12,7 @@ if (!apiKey) {
 }
 
 if (!makerMnemonic) {
-  throw new Error('Set ALPHA_MAKER_MNEMONIC or TEST_MNEMONIC before running this example.');
+  throw new Error('Set TEST_MNEMONIC before running this example.');
 }
 
 const maker = algosdk.mnemonicToSecretKey(makerMnemonic);

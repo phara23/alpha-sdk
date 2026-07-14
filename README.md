@@ -669,7 +669,7 @@ Use your partner API key. The wallet that receives RFQ fill requests is the issu
 import algosdk from 'algosdk';
 import { AlphaWebSocket } from '@alpha-arcade/sdk';
 
-const maker = algosdk.mnemonicToSecretKey(process.env.ALPHA_MAKER_MNEMONIC!);
+const maker = algosdk.mnemonicToSecretKey(process.env.TEST_MNEMONIC!);
 const signer = algosdk.makeBasicAccountTransactionSigner(maker);
 
 const ws = new AlphaWebSocket({
