@@ -709,7 +709,7 @@ Maker helpers on the session:
 Runnable example: `examples/combo-rfq-maker.ts`
 
 ```bash
-ALPHA_API_KEY=... ALPHA_MAKER_MNEMONIC=... npx tsx examples/combo-rfq-maker.ts
+ALPHA_API_KEY=... TEST_MNEMONIC=... npx tsx examples/combo-rfq-maker.ts
 ```
 
 ---

@@ -1,11 +1,18 @@
 import algosdk from 'algosdk';
+import dotenv from 'dotenv';
 import { AlphaWebSocket } from '../src/websocket.js';
 
+dotenv.config();
+  
 const apiKey = process.env.ALPHA_API_KEY;
-const makerMnemonic = process.env.ALPHA_MAKER_MNEMONIC;
+const makerMnemonic = process.env.TEST_MNEMONIC;
 
-if (!apiKey || !makerMnemonic) {
-  throw new Error('Set ALPHA_API_KEY and ALPHA_MAKER_MNEMONIC before running this example.');
+if (!apiKey) {
+  throw new Error('Set ALPHA_API_KEY before running this example.');
+}
+
+if (!makerMnemonic) {
+  throw new Error('Set ALPHA_MAKER_MNEMONIC or TEST_MNEMONIC before running this example.');
 }
 
 const maker = algosdk.mnemonicToSecretKey(makerMnemonic);
