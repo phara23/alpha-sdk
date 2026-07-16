@@ -4,8 +4,15 @@ import type {
   MarketChangedEvent,
   OrderbookChangedEvent,
   WalletOrdersChangedEvent,
+  ComboRfqFillRequestEvent,
+  ComboRfqMakerSession,
+  ComboRfqMakerSessionEvent,
+  ComboRfqMakerSessionOptions,
+  ComboRfqQuoteReference,
+  ComboRfqRequestEvent,
 } from './types.js';
 import { DEFAULT_WSS_BASE_URL } from './constants.js';
+import { signComboRfqTransactions } from './modules/comboRfq.js';
 
 type StreamKey = string;
 
@@ -35,6 +42,8 @@ type PendingRequest = {
   reject: (reason: any) => void;
   timer: ReturnType<typeof setTimeout>;
 };
+
+type MakerEventCallback = (event: ComboRfqMakerSessionEvent) => void;
 
 const resolveWebSocket = (provided?: unknown): WebSocketConstructor => {
   if (provided) return provided as WebSocketConstructor;
@@ -77,6 +86,7 @@ export class AlphaWebSocket {
   private maxReconnectAttempts: number;
   private heartbeatIntervalMs: number;
   private WebSocketImpl: WebSocketConstructor;
+  private apiKey?: string;
 
   private ws: WebSocketLike | null = null;
   private subscriptions = new Map<StreamKey, Subscription>();
@@ -87,6 +97,8 @@ export class AlphaWebSocket {
   private reconnectAttempts = 0;
   private intentionallyClosed = false;
   private connectPromise: Promise<void> | null = null;
+  private authenticated = false;
+  private makerEventCallbacks = new Set<MakerEventCallback>();
 
   constructor(config?: AlphaWebSocketConfig) {
     this.url = config?.url ?? DEFAULT_WSS_BASE_URL;
@@ -94,6 +106,7 @@ export class AlphaWebSocket {
     this.maxReconnectAttempts = config?.maxReconnectAttempts ?? Infinity;
     this.heartbeatIntervalMs = config?.heartbeatIntervalMs ?? 60_000;
     this.WebSocketImpl = resolveWebSocket(config?.WebSocket);
+    this.apiKey = config?.apiKey;
   }
 
   /** Whether the WebSocket is currently open and connected */
@@ -152,6 +165,101 @@ export class AlphaWebSocket {
   /** Query a server property (e.g. "heartbeat", "limits") */
   getProperty(property: string): Promise<unknown> {
     return this.sendRequest({ method: 'GET_PROPERTY', params: [property] });
+  }
+
+  /** Authenticate as an API-key maker and return an async combo RFQ event stream. */
+  async openComboRfqMakerSession(options: ComboRfqMakerSessionOptions = {}): Promise<ComboRfqMakerSession> {
+    const apiKey = options.apiKey ?? this.apiKey;
+    if (!apiKey) {
+      throw new Error('apiKey is required to open a combo RFQ maker session.');
+    }
+    this.apiKey = apiKey;
+    await this.connect();
+    if (!this.authenticated) {
+      await this.authenticate();
+    }
+
+    const queue: ComboRfqMakerSessionEvent[] = [];
+    const seen = new Set<string>();
+    const waiters: Array<(value: IteratorResult<ComboRfqMakerSessionEvent>) => void> = [];
+    let closed = false;
+
+    const eventKey = (event: ComboRfqMakerSessionEvent): string =>
+      event.type === 'combo_rfq_request'
+        ? `${event.type}:${event.rfqId}`
+        : `${event.type}:${event.rfqId}:${event.quoteId}`;
+
+    const callback: MakerEventCallback = (event) => {
+      const key = eventKey(event);
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      if (waiters.length > 0) {
+        waiters.shift()!({ done: false, value: event });
+        return;
+      }
+      queue.push(event);
+    };
+
+    this.makerEventCallbacks.add(callback);
+
+    const rfqIdFrom = (eventOrRfqId: ComboRfqRequestEvent | string): string =>
+      typeof eventOrRfqId === 'string' ? eventOrRfqId : eventOrRfqId.rfqId;
+
+    return {
+      [Symbol.asyncIterator]: () => ({
+        next: async (): Promise<IteratorResult<ComboRfqMakerSessionEvent>> => {
+          if (queue.length > 0) {
+            return { done: false, value: queue.shift()! };
+          }
+          if (closed) {
+            return { done: true, value: undefined };
+          }
+          return new Promise((resolve) => waiters.push(resolve));
+        },
+      }),
+      quote: async (
+        eventOrRfqId: ComboRfqRequestEvent | string,
+        quote: { priceMicro: number },
+      ): Promise<ComboRfqQuoteReference> => {
+        const response = await this.sendRequest({
+          method: 'RFQ_QUOTE',
+          params: [{ rfqId: rfqIdFrom(eventOrRfqId), priceMicro: quote.priceMicro }],
+        });
+        return (response as { result?: ComboRfqQuoteReference }).result ?? (response as ComboRfqQuoteReference);
+      },
+      cancel: (eventOrRfqId: ComboRfqRequestEvent | string): Promise<unknown> =>
+        this.sendRequest({
+          method: 'RFQ_QUOTE_CANCEL',
+          params: [{ rfqId: rfqIdFrom(eventOrRfqId) }],
+        }),
+      confirm: async (
+        event: ComboRfqFillRequestEvent,
+        signedMakerTxns?: string[],
+      ): Promise<unknown> => {
+        const signer = options.signer;
+        if (!signedMakerTxns && !signer) {
+          throw new Error('signer is required when signedMakerTxns are not provided.');
+        }
+        const signed = signedMakerTxns ?? await signComboRfqTransactions(event.unsignedMakerTxns, signer!);
+        return this.sendRequest({
+          method: 'FILL_CONFIRM',
+          params: [{ rfqId: event.rfqId, quoteId: event.quoteId, signedMakerTxns: signed }],
+        });
+      },
+      decline: (event: ComboRfqFillRequestEvent, reason?: string): Promise<unknown> =>
+        this.sendRequest({
+          method: 'FILL_DECLINE',
+          params: [{ rfqId: event.rfqId, quoteId: event.quoteId, reason }],
+        }),
+      close: (): void => {
+        closed = true;
+        this.makerEventCallbacks.delete(callback);
+        while (waiters.length > 0) {
+          waiters.shift()!({ done: true, value: undefined });
+        }
+      },
+    };
   }
 
   // ============================================
@@ -234,6 +342,7 @@ export class AlphaWebSocket {
 
       ws.onopen = () => {
         this.ws = ws;
+        this.authenticated = false;
         this.reconnectAttempts = 0;
         this.startHeartbeat();
 
@@ -244,7 +353,11 @@ export class AlphaWebSocket {
           this.sendSubscribe(sub.stream, sub.params);
         }
 
-        resolve();
+        if (this.apiKey) {
+          this.authenticate().then(resolve).catch(reject);
+        } else {
+          resolve();
+        }
       };
 
       ws.onmessage = (event) => {
@@ -294,6 +407,17 @@ export class AlphaWebSocket {
     // Route stream events to matching callbacks
     const eventType = msg.type as string | undefined;
     if (!eventType) return;
+
+    if (eventType === 'combo_rfq_request' || eventType === 'combo_rfq_fill_request') {
+      for (const callback of this.makerEventCallbacks) {
+        try {
+          callback(msg as ComboRfqMakerSessionEvent);
+        } catch {
+          // Don't let user callback errors kill the socket
+        }
+      }
+      return;
+    }
 
     for (const [key, sub] of this.subscriptions.entries()) {
       if (!this.matchesSubscriptionMessage(sub, msg)) {
@@ -383,6 +507,12 @@ export class AlphaWebSocket {
         this.send({ ...payload, id: requestId });
       }
     });
+  }
+
+  private async authenticate(): Promise<void> {
+    if (!this.apiKey) return;
+    await this.sendRequest({ method: 'AUTH', params: [{ apiKey: this.apiKey }] });
+    this.authenticated = true;
   }
 
   private send(data: Record<string, unknown>): void {

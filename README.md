@@ -86,6 +86,7 @@ The repo includes runnable examples (use `npx tsx examples/<script>.ts`). Script
 | `split-merge.ts` | Split USDC into YES/NO and merge back |
 | `simple-trading-bot.ts` | Example bot that scans markets and places market orders |
 | `place-rfq-trade.ts` | Test cross-venue RFQ quote logic for a market |
+| `combo-rfq-maker.ts` | Run a combo RFQ maker over the platform WebSocket |
 | `get-orderbook.ts` | Retrieves and logs combined routed orderbook |
 
 ## API Reference
@@ -596,6 +597,120 @@ const ws = new AlphaWebSocket({
 | Reconnect | Exponential backoff (1s → 30s max) |
 
 The client automatically responds to server pings, sends keepalive pings, and reconnects with exponential backoff on unexpected disconnects. All active subscriptions are restored after reconnect.
+
+---
+
+### Combo RFQ
+
+Competitive quotes for **AND/OR combo purchases**. Your API key is required. Alpha always quotes as the house; connected partner makers can compete over the same platform WebSocket used for public streams.
+
+This is separate from single-market cross-venue RFQ (`requestRfqQuote` / `submitRoutedOrder`).
+
+#### Buy a combo (taker)
+
+1. Request a quote with your combo tree and stake.
+2. Sign the returned user legs.
+3. Submit. If an external maker won, they get a short final look before the group lands on chain.
+
+```typescript
+import { signComboRfqTransactions, type ComboRfqTree } from '@alpha-arcade/sdk';
+
+const tree: ComboRfqTree = {
+  groups: [
+    {
+      op: 'AND',
+      legs: [
+        { source: 'aa', marketId: 'market-uuid-1', selection: 'yes' },
+        { source: 'aa', marketId: 'market-uuid-2', selection: 'no' },
+      ],
+    },
+  ],
+  connectors: [],
+};
+
+const quote = await client.requestComboRfqQuote({
+  tree,
+  grossStakeMicro: 10_000_000, // $10
+  userAddress: account.addr.toString(),
+});
+
+console.log(quote.makerKind);      // "alpha" | "external"
+console.log(quote.pricedYesMicro); // YES price in microunits (500_000 = $0.50)
+
+if (!quote.unsignedUserTxns?.length) {
+  throw new Error('Quote missing user legs. Pass userAddress on the quote request.');
+}
+
+const signedTakerTxns = await signComboRfqTransactions(
+  quote.unsignedUserTxns,
+  signer, // same TransactionSigner you passed to AlphaClient
+);
+
+const result = await client.submitComboRfqWallet({
+  quoteId: quote.quoteId,
+  userAddress: account.addr.toString(),
+  signedTakerTxns,
+});
+
+console.log('Combo filled:', result.txId);
+```
+
+Important taker notes:
+
+- Prices and stake use microunits (`1_000_000` = $1.00).
+- After you sign, the fill is bound to the chosen maker. Decline or timeout means re-quote; there is no silent rematch.
+- Common submit errors: `MAKER_DECLINED`, `MAKER_TIMEOUT`, `RFQ_EXPIRED`, `RFQ_DISABLED`, `NO_QUOTES`.
+
+#### Quote combos as a maker
+
+Use your partner API key. The wallet that receives RFQ fill requests is the issued `userAddress` on that key (single-sig), not a multisig.
+
+```typescript
+import algosdk from 'algosdk';
+import { AlphaWebSocket } from '@alpha-arcade/sdk';
+
+const maker = algosdk.mnemonicToSecretKey(process.env.TEST_MNEMONIC!);
+const signer = algosdk.makeBasicAccountTransactionSigner(maker);
+
+const ws = new AlphaWebSocket({
+  apiKey: process.env.ALPHA_API_KEY!,
+  // On Node < 22: also pass WebSocket from the `ws` package
+});
+
+const session = await ws.openComboRfqMakerSession({ signer });
+
+for await (const event of session) {
+  if (event.type === 'combo_rfq_request') {
+    // Price the tree yourself. YES probability in microunits.
+    await session.quote(event, { priceMicro: 480_000 });
+    continue;
+  }
+
+  if (event.type === 'combo_rfq_fill_request') {
+    if (Date.now() > event.confirmBy) {
+      await session.decline(event, 'expired');
+      continue;
+    }
+    // Signs maker legs with the session signer when omitted
+    await session.confirm(event);
+  }
+}
+```
+
+Maker helpers on the session:
+
+| Method | When |
+|--------|------|
+| `quote(event, { priceMicro })` | Respond during the ~1s auction |
+| `cancel(event)` | Withdraw a quote you already sent |
+| `confirm(event)` | Win final look: sign maker legs (~2s) |
+| `decline(event, reason?)` | Refuse the fill |
+
+Runnable example: `examples/combo-rfq-maker.ts`
+
+```bash
+ALPHA_API_KEY=... TEST_MNEMONIC=... npx tsx examples/combo-rfq-maker.ts
+```
 
 ---
 

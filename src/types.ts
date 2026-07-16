@@ -530,6 +530,155 @@ export type SubmitRoutedOrderResult = {
 };
 
 // ============================================
+// Combo RFQ Types
+// ============================================
+
+export type ComboRfqSelection = 'yes' | 'no';
+export type ComboRfqOp = 'AND' | 'OR';
+
+export type ComboRfqLeg =
+  | {
+      source: 'aa';
+      marketId: string;
+      selection: ComboRfqSelection;
+      label?: string;
+      matchup?: string;
+      sport?: string;
+      marketType?: string;
+    }
+  | {
+      source: 'sgp';
+      graderId: string;
+      sgp: string;
+      league?: string;
+      eventId?: string;
+      label?: string;
+      matchup?: string;
+      sport?: string;
+      marketType?: string;
+    };
+
+export type ComboRfqGroup = {
+  op: ComboRfqOp;
+  legs: ComboRfqLeg[];
+};
+
+export type ComboRfqTree = {
+  groups: ComboRfqGroup[];
+  connectors: ComboRfqOp[];
+};
+
+export type ComboRfqQuote = {
+  quoteId: string;
+  poolAppId: number;
+  yesAssetId: number;
+  noAssetId: number;
+  usdcAssetId: number;
+  houseAddress: string;
+  marketFriendAddress: string;
+  feeAddress: string;
+  matcherAppId: number;
+  pricedYesMicro: number;
+  fairYesMicro: number;
+  quantityMicro: number;
+  payoutMicro: number;
+  platformFeeMicro: number;
+  feeBase: number;
+  suggestedParams: {
+    firstValid: number;
+    lastValid: number;
+    genesisHash: string;
+    genesisID: string;
+    fee: number;
+    minFee?: number;
+  };
+  nonce: string;
+  expireAtSeconds: number;
+  expireAt?: number;
+  reservedUntilMs: number;
+  rfqId?: string;
+  makerKind?: 'alpha' | 'external';
+  makerQuoteId?: string;
+  makerAddress?: string;
+  /** Present when quote was requested with userAddress — base64 unsigned user legs. */
+  unsignedUserTxns?: string[];
+  userLegIndices?: number[];
+  [key: string]: unknown;
+};
+
+export type RequestComboRfqQuoteParams = {
+  tree: ComboRfqTree;
+  grossStakeMicro: number;
+  userAddress: string;
+  name?: string;
+};
+
+export type SubmitComboRfqWalletParams = {
+  quoteId: string;
+  userAddress: string;
+  signedTakerTxns: string[];
+};
+
+export type SubmitComboRfqResult = {
+  ok?: boolean;
+  txId?: string;
+  marketId?: string;
+  pricedYesMicro?: number;
+  [key: string]: unknown;
+};
+
+export type ComboRfqRequestEvent = {
+  type: 'combo_rfq_request';
+  rfqId: string;
+  tree: ComboRfqTree;
+  grossStakeMicro: number;
+  quoteDeadline: number;
+  /** @deprecated Alpha house price is no longer broadcast to competing makers. */
+  alphaPriceMicro?: number;
+};
+
+export type ComboRfqFillRequestEvent = {
+  type: 'combo_rfq_fill_request';
+  rfqId: string;
+  quoteId: string;
+  comboQuoteId: string;
+  makerAddress: string;
+  unsignedMakerTxns: string[];
+  confirmBy: number;
+};
+
+export type ComboRfqQuoteReference = {
+  rfqId: string;
+  quoteId: string;
+  priceMicro: number;
+};
+
+export type ComboRfqMakerSessionEvent =
+  | ComboRfqRequestEvent
+  | ComboRfqFillRequestEvent;
+
+export type ComboRfqMakerSessionOptions = {
+  /** Overrides the API key passed to AlphaWebSocket. */
+  apiKey?: string;
+  /** Optional signer used by `confirm(event)` to sign maker legs automatically. */
+  signer?: TransactionSigner;
+};
+
+export type ComboRfqMakerSession = AsyncIterable<ComboRfqMakerSessionEvent> & {
+  quote: (
+    event: ComboRfqRequestEvent | string,
+    quote: { priceMicro: number },
+  ) => Promise<ComboRfqQuoteReference>;
+  cancel: (event: ComboRfqRequestEvent | string) => Promise<unknown>;
+  confirm: (
+    event: ComboRfqFillRequestEvent,
+    signedMakerTxns?: string[],
+  ) => Promise<unknown>;
+  decline: (event: ComboRfqFillRequestEvent, reason?: string) => Promise<unknown>;
+  close: () => void;
+};
+
+// ============================================
 // Position Types
 // ============================================
 
@@ -645,6 +794,8 @@ export type AlphaWebSocketConfig = {
   maxReconnectAttempts?: number;
   /** Heartbeat interval in ms (default: 60000) */
   heartbeatIntervalMs?: number;
+  /** API key used to authenticate RFQ maker methods on the existing platform WebSocket. */
+  apiKey?: string;
   /**
    * WebSocket constructor to use. Defaults to the global `WebSocket`.
    * On Node.js < 22, pass the `ws` package: `import WebSocket from 'ws'; new AlphaWebSocket({ WebSocket })`
@@ -719,4 +870,6 @@ export type WebSocketStreamEvent =
   | MarketsChangedEvent
   | MarketChangedEvent
   | OrderbookChangedEvent
-  | WalletOrdersChangedEvent;
+  | WalletOrdersChangedEvent
+  | ComboRfqRequestEvent
+  | ComboRfqFillRequestEvent;

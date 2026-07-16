@@ -49,6 +49,13 @@ export type {
   RequestRfqQuoteParams,
   SubmitRoutedOrderParams,
   SubmitRoutedOrderResult,
+  ComboRfqLeg,
+  ComboRfqGroup,
+  ComboRfqTree,
+  ComboRfqQuote,
+  RequestComboRfqQuoteParams,
+  SubmitComboRfqWalletParams,
+  SubmitComboRfqResult,
   AggregatedOrderbookEntry,
   AggregatedOrderbookSide,
   AggregatedOrderbook,
@@ -72,6 +79,12 @@ export type {
   MarketsChangedEvent,
   MarketChangedEvent,
   WalletOrdersChangedEvent,
+  ComboRfqRequestEvent,
+  ComboRfqFillRequestEvent,
+  ComboRfqQuoteReference,
+  ComboRfqMakerSessionEvent,
+  ComboRfqMakerSessionOptions,
+  ComboRfqMakerSession,
   WebSocketStreamEvent,
 } from './types.js';
 
@@ -79,6 +92,7 @@ export type {
 export { getMarketsOnChain, getMarketOnChain, getLiveMarketsFromApi, getMarketFromApi } from './modules/markets.js';
 export { getRoutedOrderbookFromApi } from './modules/orderbook.js';
 export { getCrossVenueConfig, requestRfqQuote, submitRoutedOrder } from './modules/crossVenue.js';
+export { requestComboRfqQuote, submitComboRfqWallet, signComboRfqTransactions } from './modules/comboRfq.js';
 export { DEFAULT_API_BASE_URL, DEFAULT_WSS_BASE_URL, DEFAULT_MARKET_CREATOR_ADDRESS } from './constants.js';
 
 // Utility functions (for advanced users)
