@@ -400,6 +400,22 @@ export class AlphaWebSocket {
       const req = this.pendingRequests.get(responseId)!;
       this.pendingRequests.delete(responseId);
       clearTimeout(req.timer);
+
+      // Server control responses are { id, status, result } on success and
+      // { id, status, error: { code, msg } } on failure. Rejecting here is what
+      // surfaces AUTH/RFQ method failures — resolving them silently leaves
+      // callers (e.g. openComboRfqMakerSession) believing they succeeded.
+      const errorPayload = msg.error;
+      const status = typeof msg.status === 'number' ? msg.status : null;
+      if (errorPayload || (status !== null && status >= 400)) {
+        const message =
+          (errorPayload && typeof errorPayload.msg === 'string' && errorPayload.msg) ||
+          (typeof msg.message === 'string' && msg.message) ||
+          `WebSocket request failed with status ${status ?? 'unknown'}`;
+        req.reject(Object.assign(new Error(message), { status, code: errorPayload?.code }));
+        return;
+      }
+
       req.resolve(msg);
       return;
     }
