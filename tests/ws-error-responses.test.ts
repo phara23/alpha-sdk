@@ -44,6 +44,8 @@ class MockWebSocket {
 }
 
 describe('websocket control response handling', () => {
+  const makerAddress = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ';
+
   afterEach(() => {
     MockWebSocket.instances = [];
     MockWebSocket.respondWith = () => null;
@@ -57,7 +59,7 @@ describe('websocket control response handling', () => {
 
     const ws = new AlphaWebSocket({ apiKey: 'bad-key', WebSocket: MockWebSocket });
 
-    await expect(ws.openComboRfqMakerSession()).rejects.toMatchObject({
+    await expect(ws.openComboRfqMakerSession({ makerAddress })).rejects.toMatchObject({
       message: 'Invalid API key',
       status: 401,
     });
@@ -70,7 +72,7 @@ describe('websocket control response handling', () => {
         : null;
 
     const ws = new AlphaWebSocket({ apiKey: 'test-key', WebSocket: MockWebSocket });
-    const session = await ws.openComboRfqMakerSession();
+    const session = await ws.openComboRfqMakerSession({ makerAddress });
 
     await expect(
       session.quote(
@@ -82,6 +84,6 @@ describe('websocket control response handling', () => {
 
   it('still resolves plain success responses', async () => {
     const ws = new AlphaWebSocket({ apiKey: 'test-key', WebSocket: MockWebSocket });
-    await expect(ws.openComboRfqMakerSession()).resolves.toBeDefined();
+    await expect(ws.openComboRfqMakerSession({ makerAddress })).resolves.toBeDefined();
   });
 });

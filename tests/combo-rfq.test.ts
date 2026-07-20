@@ -102,12 +102,13 @@ describe('combo RFQ SDK transport', () => {
   });
 
   it('authenticates maker sessions and sends RFQ quotes on the existing websocket', async () => {
+    const makerAddress = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ';
     const ws = new AlphaWebSocket({
       apiKey: 'test-key',
       WebSocket: MockWebSocket,
     });
 
-    const session = await ws.openComboRfqMakerSession();
+    const session = await ws.openComboRfqMakerSession({ makerAddress });
     const socket = MockWebSocket.instances[0];
     socket.emit({
       type: 'combo_rfq_request',
@@ -120,8 +121,12 @@ describe('combo RFQ SDK transport', () => {
     const event = (await session[Symbol.asyncIterator]().next()).value;
     const quote = await session.quote(event, { priceMicro: 490_000 });
 
+    expect(session.makerAddress).toBe(makerAddress);
     expect(socket.sent).toEqual(expect.arrayContaining([
-      expect.objectContaining({ method: 'AUTH' }),
+      expect.objectContaining({
+        method: 'AUTH',
+        params: [{ apiKey: 'test-key', makerAddress }],
+      }),
       expect.objectContaining({ method: 'RFQ_QUOTE' }),
     ]));
     expect(quote).toMatchObject({

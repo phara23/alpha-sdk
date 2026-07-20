@@ -98,6 +98,8 @@ export class AlphaWebSocket {
   private intentionallyClosed = false;
   private connectPromise: Promise<void> | null = null;
   private authenticated = false;
+  /** Bound at openComboRfqMakerSession; re-sent on reconnect AUTH. */
+  private rfqMakerAddress?: string;
   private makerEventCallbacks = new Set<MakerEventCallback>();
 
   constructor(config?: AlphaWebSocketConfig) {
@@ -168,16 +170,23 @@ export class AlphaWebSocket {
   }
 
   /** Authenticate as an API-key maker and return an async combo RFQ event stream. */
-  async openComboRfqMakerSession(options: ComboRfqMakerSessionOptions = {}): Promise<ComboRfqMakerSession> {
+  async openComboRfqMakerSession(options: ComboRfqMakerSessionOptions): Promise<ComboRfqMakerSession> {
     const apiKey = options.apiKey ?? this.apiKey;
     if (!apiKey) {
       throw new Error('apiKey is required to open a combo RFQ maker session.');
     }
-    this.apiKey = apiKey;
-    await this.connect();
-    if (!this.authenticated) {
-      await this.authenticate();
+    const makerAddress = String(options.makerAddress || '').trim();
+    if (!makerAddress) {
+      throw new Error(
+        'makerAddress is required — pass the Algorand wallet that will quote and sign fills.',
+      );
     }
+    this.apiKey = apiKey;
+    this.rfqMakerAddress = makerAddress;
+    await this.connect();
+    // Always AUTH with makerAddress so the session binds the settlement wallet
+    // (not the API-key owner's Cognito/issued address).
+    await this.authenticate({ makerAddress });
 
     const queue: ComboRfqMakerSessionEvent[] = [];
     const seen = new Set<string>();
@@ -207,6 +216,7 @@ export class AlphaWebSocket {
       typeof eventOrRfqId === 'string' ? eventOrRfqId : eventOrRfqId.rfqId;
 
     return {
+      makerAddress,
       [Symbol.asyncIterator]: () => ({
         next: async (): Promise<IteratorResult<ComboRfqMakerSessionEvent>> => {
           if (queue.length > 0) {
@@ -241,6 +251,11 @@ export class AlphaWebSocket {
         if (!signedMakerTxns && !signer) {
           throw new Error('signer is required when signedMakerTxns are not provided.');
         }
+        if (event.makerAddress !== makerAddress) {
+          throw new Error(
+            `Fill request makerAddress ${event.makerAddress} does not match session ${makerAddress}`,
+          );
+        }
         const signed = signedMakerTxns ?? await signComboRfqTransactions(event.unsignedMakerTxns, signer!);
         return this.sendRequest({
           method: 'FILL_CONFIRM',
@@ -254,6 +269,9 @@ export class AlphaWebSocket {
         }),
       close: (): void => {
         closed = true;
+        if (this.rfqMakerAddress === makerAddress) {
+          this.rfqMakerAddress = undefined;
+        }
         this.makerEventCallbacks.delete(callback);
         while (waiters.length > 0) {
           waiters.shift()!({ done: true, value: undefined });
@@ -354,7 +372,9 @@ export class AlphaWebSocket {
         }
 
         if (this.apiKey) {
-          this.authenticate().then(resolve).catch(reject);
+          this.authenticate(
+            this.rfqMakerAddress ? { makerAddress: this.rfqMakerAddress } : undefined,
+          ).then(resolve).catch(reject);
         } else {
           resolve();
         }
@@ -525,9 +545,13 @@ export class AlphaWebSocket {
     });
   }
 
-  private async authenticate(): Promise<void> {
+  private async authenticate(options?: { makerAddress?: string }): Promise<void> {
     if (!this.apiKey) return;
-    await this.sendRequest({ method: 'AUTH', params: [{ apiKey: this.apiKey }] });
+    const params: Record<string, string> = { apiKey: this.apiKey };
+    if (options?.makerAddress) {
+      params.makerAddress = options.makerAddress;
+    }
+    await this.sendRequest({ method: 'AUTH', params: [params] });
     this.authenticated = true;
   }
 

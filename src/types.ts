@@ -677,11 +677,19 @@ export type ComboRfqMakerSessionEvent =
 export type ComboRfqMakerSessionOptions = {
   /** Overrides the API key passed to AlphaWebSocket. */
   apiKey?: string;
+  /**
+   * Algorand wallet that will quote and sign fills. Required.
+   * Independent of the API-key account's issued trading address — fund this wallet
+   * with USDC + ALGO for capacity checks.
+   */
+  makerAddress: string;
   /** Optional signer used by `confirm(event)` to sign maker legs automatically. */
   signer?: TransactionSigner;
 };
 
 export type ComboRfqMakerSession = AsyncIterable<ComboRfqMakerSessionEvent> & {
+  /** Settlement wallet bound at AUTH for this session. */
+  makerAddress: string;
   quote: (
     event: ComboRfqRequestEvent | string,
     quote: { priceMicro: number },
