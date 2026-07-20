@@ -541,6 +541,15 @@ export type ComboRfqLeg =
       source: 'aa';
       marketId: string;
       selection: ComboRfqSelection;
+      /** The leg's own on-chain market/option escrow app id — read the order
+       *  book straight from chain, no id→appId lookup. For a spread/total/futures
+       *  OPTION leg this is the OPTION's app (each option is its own market). Set
+       *  on the RFQ broadcast a maker receives; absent on legs a taker submits. */
+      marketAppId?: number;
+      /** Plain-english "<parent question> — <pick>" for the leg, e.g.
+       *  "NFL Champion 2027 — Baltimore Ravens" or "LoL: DS vs BF — DS". Set on
+       *  the RFQ broadcast a maker receives. */
+      description?: string;
       label?: string;
       matchup?: string;
       sport?: string;
@@ -552,6 +561,9 @@ export type ComboRfqLeg =
       sgp: string;
       league?: string;
       eventId?: string;
+      /** Plain-english "<market> — <selection>" derived from the graderId, e.g.
+       *  "Moneyline — Minnesota Twins". Set on the RFQ broadcast a maker receives. */
+      description?: string;
       label?: string;
       matchup?: string;
       sport?: string;
@@ -632,6 +644,11 @@ export type ComboRfqRequestEvent = {
   rfqId: string;
   tree: ComboRfqTree;
   grossStakeMicro: number;
+  /** Whole-combo FAIR probability (micro, pre-edge) — the maker's anchor. Fair
+   *  is computable by any maker with the odds (leaks no Alpha margin) and lets
+   *  you price without a /combo/price round trip. NOT per-leg and NOT Alpha's
+   *  quoted price — quote below fair+edge to compete. */
+  fairPriceMicro?: number;
   quoteDeadline: number;
   /** @deprecated Alpha house price is no longer broadcast to competing makers. */
   alphaPriceMicro?: number;
