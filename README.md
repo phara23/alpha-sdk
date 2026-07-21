@@ -677,7 +677,10 @@ const ws = new AlphaWebSocket({
   // On Node < 22: also pass WebSocket from the `ws` package
 });
 
-const session = await ws.openComboRfqMakerSession({ signer });
+const session = await ws.openComboRfqMakerSession({
+  makerAddress: maker.addr.toString(),
+  signer,
+});
 
 for await (const event of session) {
   if (event.type === 'combo_rfq_request') {
