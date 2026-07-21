@@ -620,12 +620,22 @@ const tree: ComboRfqTree = {
     {
       op: 'AND',
       legs: [
+        // AA-native market legs (esports, tennis, MLB, futures, …).
         { source: 'aa', marketId: 'market-uuid-1', selection: 'yes' },
         { source: 'aa', marketId: 'market-uuid-2', selection: 'no' },
+        // Same-game (SGP) legs are also supported — identified by graderId +
+        // the BlazeBuilder sgp token (from the /parlay/sgp/markets feed):
+        // {
+        //   source: 'sgp',
+        //   graderId: 'DraftKings#<eventId>#Moneyline#<Team>',
+        //   sgp: '<blazebuilder-token>',
+        //   league: 'mlb',
+        //   eventId: '<eventId>',
+        // },
       ],
     },
   ],
-  connectors: [],
+  connectors: [], // op between consecutive groups; length = groups.length - 1
 };
 
 const quote = await client.requestComboRfqQuote({
@@ -663,42 +673,92 @@ Important taker notes:
 
 #### Quote combos as a maker
 
-Use your partner API key. The wallet that receives RFQ fill requests is the issued `userAddress` on that key (single-sig), not a multisig.
+Connected partner makers compete to fill combos in a **reverse auction**: when a
+trader prices a combo, every maker receives the full order over the platform
+WebSocket and returns a YES price. The **lowest** price wins the trader's flow —
+and you only win by **beating Alpha's house quote** (which is never broadcast to
+you). Alpha is always the backstop, so there is no obligation to quote and no
+adverse fill: you win only when you choose to and are cheaper.
+
+**Prerequisites**
+
+- A **partner API key** (contact the Alpha Arcade team to be provisioned).
+- A **funded Algorand maker wallet** — `makerAddress`. It quotes and signs the
+  fills, and is checked for capacity on every win: fund it with **USDC** (to post
+  your side of fills) plus a little **ALGO** (fees + asset opt-ins). A maker that
+  can't cover a fill is briefly auto-paused, not errored.
+- The maker wallet is independent of the API key's account — pass it explicitly.
+
+**Minimal maker loop**
 
 ```typescript
 import algosdk from 'algosdk';
 import { AlphaWebSocket } from '@alpha-arcade/sdk';
 
-const maker = algosdk.mnemonicToSecretKey(process.env.TEST_MNEMONIC!);
+const maker = algosdk.mnemonicToSecretKey(process.env.MAKER_MNEMONIC!);
 const signer = algosdk.makeBasicAccountTransactionSigner(maker);
 
 const ws = new AlphaWebSocket({
-  apiKey: process.env.ALPHA_API_KEY!,
-  // On Node < 22: also pass WebSocket from the `ws` package
+  apiKey: process.env.ALPHA_API_KEY!,     // your partner key
+  // On Node < 22: also pass WebSocket from the `ws` package.
 });
 
 const session = await ws.openComboRfqMakerSession({
-  makerAddress: maker.addr.toString(),
-  signer,
+  makerAddress: maker.addr.toString(),    // funded USDC + ALGO wallet
+  signer,                                 // used by confirm() to sign maker legs
 });
 
 for await (const event of session) {
   if (event.type === 'combo_rfq_request') {
-    // Price the tree yourself. YES probability in microunits.
-    await session.quote(event, { priceMicro: 480_000 });
+    // Anchor on the broadcast fair price and quote fair + your edge. Lower YES
+    // price = more competitive. Skip if there's no profitable price for you.
+    if (event.fairPriceMicro == null) continue;
+    await session.quote(event, { priceMicro: event.fairPriceMicro + 5_000 });
     continue;
   }
 
   if (event.type === 'combo_rfq_fill_request') {
+    // You won the auction — sign your maker legs within confirmBy (~2s).
     if (Date.now() > event.confirmBy) {
       await session.decline(event, 'expired');
       continue;
     }
-    // Signs maker legs with the session signer when omitted
-    await session.confirm(event);
+    await session.confirm(event);         // signs maker legs with the session signer
   }
 }
 ```
+
+**Pricing the combo**
+
+Every `combo_rfq_request` carries **`fairPriceMicro`** — the whole-combo FAIR
+probability (pre-edge, in microunits). This is your anchor: it's computable by
+any maker with the underlying odds (so it leaks none of Alpha's margin) and lets
+you quote **without a round trip** to price the tree. Quote a hair above fair to
+keep an edge while still undercutting Alpha's marked-up house price.
+
+To price independently instead of anchoring, each leg tells you what it is:
+
+- **AA legs** — `{ source: 'aa', marketId, marketAppId, selection, description }`.
+  Read the on-chain order book directly by `marketAppId`, or call `/combo/price`.
+- **SGP legs** — `{ source: 'sgp', graderId, sgp, league, eventId, description }`.
+  Price from your own odds feed (OddsBlaze); same-game correlation uses the
+  BlazeBuilder `sgp` token. `graderId` is `Book#eventId#Market#Selection`.
+- **Tree shape** — each `tree.groups[]` combines its `legs` by `op` (`AND`/`OR`);
+  `tree.connectors[]` join consecutive groups (length = `groups.length - 1`).
+- `description` on each leg is a plain-english label
+  (e.g. `"NFL Champion 2027 — Baltimore Ravens"`) for logging/UI.
+
+**Latency** — you have **~1s to quote** and **~2s to sign the fill**. WebSocket
+delivery + your price + the round trip must fit the first window, so serious
+makers price from a **local model/cache** (or the fair anchor) rather than a live
+API probe, and run **close to `us-east-1`**.
+
+**Settlement is non-custodial and tamper-proof.** You sign only your own maker
+legs, from your own wallet. On submit the server rebuilds the transaction group
+**byte-for-byte** from the pinned quote and rejects any mismatch, then settles the
+whole combo as one **atomic group in USDC on Algorand**. You fund the opposite
+side of the trader's position — `(1e6 - priceMicro)` per contract — so a
+long-shot combo's edge is realised on its likely miss.
 
 Maker helpers on the session:
 
@@ -712,7 +772,7 @@ Maker helpers on the session:
 Runnable example: `examples/combo-rfq-maker.ts`
 
 ```bash
-ALPHA_API_KEY=... TEST_MNEMONIC=... npx tsx examples/combo-rfq-maker.ts
+ALPHA_API_KEY=... MAKER_MNEMONIC=... npx tsx examples/combo-rfq-maker.ts
 ```
 
 ---
