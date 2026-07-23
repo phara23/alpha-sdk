@@ -745,6 +745,10 @@ To price independently instead of anchoring, each leg tells you what it is:
   BlazeBuilder `sgp` token. `graderId` is `Book#eventId#Market#Selection`.
 - **Tree shape** — each `tree.groups[]` combines its `legs` by `op` (`AND`/`OR`);
   `tree.connectors[]` join consecutive groups (length = `groups.length - 1`).
+  **Every taker flow broadcasts RFQs** — AND/OR combos, classic flat parlays,
+  and same-game (SGP/mixed) tickets. Flat parlays arrive as a single
+  ALL-must-win group (`groups.length === 1`, `op: 'AND'`, no connectors), so
+  don't assume multiple groups.
 - `description` on each leg is a plain-english label
   (e.g. `"NFL Champion 2027 — Baltimore Ravens"`) for logging/UI.
 
