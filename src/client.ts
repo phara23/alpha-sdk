@@ -31,6 +31,10 @@ import type {
   RequestComboRfqQuoteParams,
   SubmitComboRfqResult,
   SubmitComboRfqWalletParams,
+  StakeAlphaParams,
+  UnstakeAlphaParams,
+  StakingActionResult,
+  StakingPosition,
 } from './types.js';
 import {
   createLimitOrder,
@@ -47,6 +51,12 @@ import {
   getPositions,
 } from './modules/positions.js';
 import {
+  stakeAlpha,
+  unstakeAlpha,
+  claimStakingRewards,
+  getStakingPosition,
+} from './modules/staking.js';
+import {
   getFullOrderbookFromApi,
   getRoutedOrderbookFromApi,
   getOrderbook,
@@ -62,7 +72,11 @@ import {
   requestComboRfqQuote,
   submitComboRfqWallet,
 } from './modules/comboRfq.js';
-import { DEFAULT_API_BASE_URL } from './constants.js';
+import {
+  DEFAULT_API_BASE_URL,
+  DEFAULT_ALPHA_ASSET_ID,
+  DEFAULT_STAKING_APP_ID,
+} from './constants.js';
 import {
   getLiveMarkets as fetchLiveMarkets,
   getMarket as fetchMarket,
@@ -79,6 +93,7 @@ import {
  * Provides methods for:
  * - **Trading**: Create limit/market orders, cancel orders, propose matches
  * - **Positions**: Split/merge shares, claim resolved tokens, view positions
+ * - **Staking**: Stake ALPHA for USDC fee rewards (fully on-chain)
  * - **Orderbook**: Read on-chain orderbooks or fetch full API-backed market snapshots
  * - **Markets**: Fetch live markets from the Alpha API
  *
@@ -128,6 +143,8 @@ export class AlphaClient {
     this.config = {
       ...config,
       apiBaseUrl: config.apiBaseUrl ?? DEFAULT_API_BASE_URL,
+      stakingAppId: config.stakingAppId ?? DEFAULT_STAKING_APP_ID,
+      alphaAssetId: config.alphaAssetId ?? DEFAULT_ALPHA_ASSET_ID,
     };
   }
 
@@ -272,6 +289,54 @@ export class AlphaClient {
    */
   async getPositions(walletAddress?: string): Promise<WalletPosition[]> {
     return getPositions(this.config, walletAddress);
+  }
+
+  // ============================================
+  // Staking (on-chain ALPHA fee-sharing pool)
+  // ============================================
+
+  /**
+   * Stakes ALPHA into the fee-sharing pool.
+   *
+   * Purely on-chain: optional app opt-in + ALPHA transfer into the pool + `stake()`.
+   * No Alpha platform API call. Amount is micro-ALPHA (1_000_000 = 1 ALPHA).
+   *
+   * @param params - Stake parameters (`amount` in microunits)
+   * @returns Transaction result
+   */
+  async stakeAlpha(params: StakeAlphaParams): Promise<StakingActionResult> {
+    return stakeAlpha(this.config, params);
+  }
+
+  /**
+   * Unstakes ALPHA from the pool. The contract returns ALPHA via an inner transfer.
+   *
+   * @param params - Unstake parameters (`amount` in microunits)
+   * @returns Transaction result
+   */
+  async unstakeAlpha(params: UnstakeAlphaParams): Promise<StakingActionResult> {
+    return unstakeAlpha(this.config, params);
+  }
+
+  /**
+   * Claims accrued USDC trading-fee rewards from the staking pool.
+   *
+   * Adds a USDC ASA opt-in when needed. Purely on-chain.
+   *
+   * @returns Transaction result
+   */
+  async claimStakingRewards(): Promise<StakingActionResult> {
+    return claimStakingRewards(this.config);
+  }
+
+  /**
+   * Reads a wallet's on-chain staking position (staked ALPHA, claimable USDC, pool share).
+   *
+   * @param walletAddress - Optional wallet (defaults to activeAddress)
+   * @returns On-chain staking position
+   */
+  async getStakingPosition(walletAddress?: string): Promise<StakingPosition> {
+    return getStakingPosition(this.config, walletAddress);
   }
 
   // ============================================

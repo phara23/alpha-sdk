@@ -2,7 +2,7 @@
 
 TypeScript SDK for trading on **Alpha Market** - Algorand prediction markets.
 
-Place orders, manage positions, read orderbooks from the API or chain, and build automated trading bots.
+Place orders, manage positions, stake ALPHA for fee rewards, read orderbooks from the API or chain, and build automated trading bots.
 
 ## Installation
 
@@ -80,6 +80,7 @@ The repo includes runnable examples (use `npx tsx examples/<script>.ts`). Script
 | `get-orders.ts` | Fetch all open orders for a wallet via the API (`getWalletOrdersFromApi`) |
 | `get-reward-markets.ts` | Fetch reward markets and show liquidity reward info (`getRewardMarkets`) |
 | `get-positions.ts` | List token positions across markets (`getPositions`) |
+| `stake-alpha.ts` | Stake ALPHA into the fee-sharing pool on-chain (`stakeAlpha`) |
 | `place-limit-order.ts` | Place a limit order |
 | `place-market-order.ts` | Place a market order |
 | `cancel-order.ts` | Cancel an open order |
@@ -110,6 +111,8 @@ new AlphaClient(config: AlphaClientConfig)
 | `apiKey` | `string` | No | Alpha API key. If provided, `getLiveMarkets()` and related API methods use the platform for richer data (images, categories, volume, reward markets, wallet orders). If omitted, markets are discovered on-chain. |
 | `apiBaseUrl` | `string` | No | API base URL (default: `https://platform.alphaarcade.com/api`) |
 | `marketCreatorAddress` | `string` | No | Market creator address for on-chain discovery (defaults to Alpha Arcade mainnet) |
+| `stakingAppId` | `number` | No | ALPHA staking pool app ID (mainnet default: `3626756314`) |
+| `alphaAssetId` | `number` | No | ALPHA ASA ID (mainnet default: `2726252423`) |
 
 ---
 
@@ -242,6 +245,59 @@ for (const pos of positions) {
   console.log(`Market ${pos.marketAppId}: ${pos.yesBalance / 1e6} YES, ${pos.noBalance / 1e6} NO`);
 }
 ```
+
+---
+
+### Staking (ALPHA fee-sharing pool)
+
+Stake ALPHA to earn a share of trading fees routed to the pool as USDC. These methods are **fully on-chain** (algod only) — no Alpha platform API key required.
+
+Mainnet defaults (overridable via `stakingAppId` / `alphaAssetId` on the client):
+
+| Constant | Value |
+|----------|-------|
+| Staking app ID | `3626756314` |
+| ALPHA ASA | `2726252423` (6 decimals) |
+| Reward asset | USDC `31566704` |
+
+**Transaction group for `stakeAlpha`:** optional app `opt_in()` → ALPHA axfer into the pool → `stake()`. The ALPHA transfer must immediately precede the stake app call. First-time stakers need ~0.2385 ALGO free for app local-state MBR + fees.
+
+#### `stakeAlpha(params)`
+
+```typescript
+// Stake 10 ALPHA (amounts are microunits)
+const result = await client.stakeAlpha({ amount: 10_000_000 });
+console.log(result.txIds, result.confirmedRound);
+```
+
+#### `unstakeAlpha(params)`
+
+```typescript
+const result = await client.unstakeAlpha({ amount: 5_000_000 });
+```
+
+#### `claimStakingRewards()`
+
+Claims accrued USDC rewards. Adds a USDC ASA opt-in when needed.
+
+```typescript
+const result = await client.claimStakingRewards();
+```
+
+#### `getStakingPosition(walletAddress?)`
+
+Reads on-chain stake + claimable USDC for a wallet.
+
+```typescript
+const pos = await client.getStakingPosition();
+console.log(`Staked: ${pos.staked / 1e6} ALPHA`);
+console.log(`Claimable: $${pos.claimable / 1e6} USDC`);
+console.log(`Pool share: ${pos.poolShareBps / 100}%`);
+```
+
+See `examples/stake-alpha.ts` for a runnable script (`TEST_MNEMONIC` required).
+
+> **Disclaimer:** $ALPHA staking and fee distributions involve risks. Staking returns depend on trading activity on staking-enabled markets and are not guaranteed. This documentation does not constitute an offer or solicitation to purchase $ALPHA or any other digital asset. $ALPHA has not been registered under the U.S. Securities Act of 1933 or any state securities law.
 
 ---
 

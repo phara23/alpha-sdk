@@ -69,6 +69,11 @@ export type {
   OpenOrder,
   // Escrow
   EscrowGlobalState,
+  // Staking
+  StakeAlphaParams,
+  UnstakeAlphaParams,
+  StakingActionResult,
+  StakingPosition,
   // WebSocket
   AlphaWebSocketConfig,
   WsOrderbookAggregatedEntry,
@@ -93,11 +98,30 @@ export { getMarketsOnChain, getMarketOnChain, getLiveMarketsFromApi, getMarketFr
 export { getRoutedOrderbookFromApi } from './modules/orderbook.js';
 export { getCrossVenueConfig, requestRfqQuote, submitRoutedOrder } from './modules/crossVenue.js';
 export { requestComboRfqQuote, submitComboRfqWallet, signComboRfqTransactions } from './modules/comboRfq.js';
-export { DEFAULT_API_BASE_URL, DEFAULT_WSS_BASE_URL, DEFAULT_MARKET_CREATOR_ADDRESS } from './constants.js';
+export {
+  stakeAlpha,
+  unstakeAlpha,
+  claimStakingRewards,
+  getStakingPosition,
+} from './modules/staking.js';
+export {
+  DEFAULT_API_BASE_URL,
+  DEFAULT_WSS_BASE_URL,
+  DEFAULT_MARKET_CREATOR_ADDRESS,
+  DEFAULT_STAKING_APP_ID,
+  DEFAULT_ALPHA_ASSET_ID,
+  STAKING_REWARD_PRECISION,
+} from './constants.js';
 
 // Utility functions (for advanced users)
 export { calculateFee, calculateFeeFromTotal } from './utils/fees.js';
 export { calculateMatchingOrders } from './utils/matching.js';
 export { resolveRfqTradeTarget } from './utils/rfq.js';
 export type { RfqTradeTarget, ResolveRfqTradeTargetParams } from './utils/rfq.js';
-export { decodeGlobalState, getMarketGlobalState, getEscrowGlobalState, checkAssetOptIn } from './utils/state.js';
+export {
+  decodeGlobalState,
+  getMarketGlobalState,
+  getEscrowGlobalState,
+  checkAssetOptIn,
+  checkAppOptIn,
+} from './utils/state.js';

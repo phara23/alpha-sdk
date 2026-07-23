@@ -120,3 +120,23 @@ export const checkAssetOptIn = async (
     return false;
   }
 };
+
+/**
+ * Checks if an address has opted into an application (local state present).
+ * Returns false on lookup failure so callers can safely add an opt-in txn.
+ */
+export const checkAppOptIn = async (
+  algodClient: algosdk.Algodv2,
+  address: string,
+  appId: number,
+): Promise<boolean> => {
+  try {
+    const accountInfo: any = await algodClient.accountInformation(address).do();
+    const locals = accountInfo.appsLocalState ?? accountInfo['apps-local-state'] ?? [];
+    return locals.some(
+      (a: any) => Number(a.id ?? a.appId ?? a['app-id']) === appId,
+    );
+  } catch {
+    return false;
+  }
+};

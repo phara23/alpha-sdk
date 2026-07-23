@@ -24,6 +24,10 @@ export type AlphaClientConfig = {
   apiKey?: string;
   /** Market creator address for on-chain market discovery. Defaults to the Alpha Arcade mainnet creator. */
   marketCreatorAddress?: string;
+  /** ALPHA staking pool app ID (mainnet default: 3626756314) */
+  stakingAppId?: number;
+  /** ALPHA ASA ID (mainnet default: 2726252423) */
+  alphaAssetId?: number;
 };
 
 // ============================================
@@ -898,3 +902,50 @@ export type WebSocketStreamEvent =
   | WalletOrdersChangedEvent
   | ComboRfqRequestEvent
   | ComboRfqFillRequestEvent;
+
+// ============================================
+// Staking Types
+// ============================================
+
+/** Stake ALPHA into the fee-sharing pool (microunits, 6 decimals). */
+export type StakeAlphaParams = {
+  /** Amount of ALPHA to stake, in microunits (1_000_000 = 1 ALPHA) */
+  amount: number;
+};
+
+/** Unstake ALPHA from the pool (microunits, 6 decimals). */
+export type UnstakeAlphaParams = {
+  /** Amount of ALPHA to unstake, in microunits (1_000_000 = 1 ALPHA) */
+  amount: number;
+};
+
+/** Result of a staking write action (stake / unstake / claim). */
+export type StakingActionResult = {
+  success: boolean;
+  txIds: string[];
+  confirmedRound: number;
+};
+
+/**
+ * On-chain staking position for a wallet.
+ * Amounts are microunits. Claimable excludes USDC fees that have arrived at the
+ * pool but have not yet been folded into the reward accumulator.
+ */
+export type StakingPosition = {
+  /** Whether the wallet has opted into the staking app */
+  optedIn: boolean;
+  /** ALPHA currently staked by this wallet (microunits) */
+  staked: number;
+  /** Pending USDC rewards already accrued into local state (microunits) */
+  pending: number;
+  /** Claimable USDC right now (pending + accrued vs current accumulator) */
+  claimable: number;
+  /** Unix timestamp (seconds) when this wallet's stake last became non-zero */
+  stakedSince: number;
+  /** Total ALPHA staked in the pool (microunits) */
+  totalStaked: number;
+  /** USDC currently held by the pool app address (microunits) */
+  poolUsdcBalance: number;
+  /** Share of the pool in basis points (staked / totalStaked * 10_000), or 0 */
+  poolShareBps: number;
+};
