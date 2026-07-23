@@ -17,12 +17,7 @@ import { checkAppOptIn, checkAssetOptIn } from '../utils/state.js';
 /**
  * On-chain ALPHA staking pool.
  *
- * Pure algod — no Alpha platform API. Mirrors the wallet path used by
- * algomarket-fe (`stakingClient.ts`) and alphaarcade (`executeStaking.ts`):
- *
- *   stake:   [opt_in?] + axfer(ALPHA → pool) + stake()
- *   unstake: unstake(amount)  // inner ALPHA return; flat 2_000 fee
- *   claim:   [USDC opt-in?] + claim()  // inner USDC payout; flat 2_000 fee
+ * Pure algod — no Alpha platform API:
  */
 
 const STAKE_METHOD = new algosdk.ABIMethod({
@@ -184,7 +179,6 @@ export const stakeAlpha = async (
     });
   }
 
-  // ALPHA deposit MUST be the transaction immediately before stake().
   const axfer = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
     sender: activeAddress,
     receiver: appAddress,
@@ -201,8 +195,6 @@ export const stakeAlpha = async (
     sender: activeAddress,
     signer,
     suggestedParams: sp,
-    // stake() → do_sync() reads the pool USDC balance, so USDC (not ALPHA)
-    // must be in foreign assets. The ALPHA in is the preceding axfer.
     appForeignAssets: [usdcAssetId],
   });
 
@@ -315,9 +307,7 @@ export const claimStakingRewards = async (
  * Read a wallet's on-chain staking position (algod only).
  *
  * Claimable mirrors the contract's view: pending + accrued against the current
- * accumulator. Fees sitting in the pool that have not been folded into the
- * accumulator yet are excluded until a write that syncs (stake / unstake /
- * claim, or the keeper) runs.
+ * accumulator.
  */
 export const getStakingPosition = async (
   config: AlphaClientConfig,
