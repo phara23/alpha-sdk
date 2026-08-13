@@ -35,6 +35,14 @@ import type {
   UnstakeAlphaParams,
   StakingActionResult,
   StakingPosition,
+  OpenPerpParams,
+  ClosePerpParams,
+  LpDepositParams,
+  LpWithdrawParams,
+  PerpActionResult,
+  PerpsMarket,
+  PerpPosition,
+  PerpPositionView,
 } from './types.js';
 import {
   createLimitOrder,
@@ -56,6 +64,19 @@ import {
   claimStakingRewards,
   getStakingPosition,
 } from './modules/staking.js';
+import {
+  openPosition,
+  closePosition,
+  liquidate,
+  lpDeposit,
+  lpWithdraw,
+  poke,
+  getPerpsMarket,
+  getPosition,
+  getPositionView,
+  getLpShares,
+  getMark,
+} from './modules/perps.js';
 import {
   getFullOrderbookFromApi,
   getRoutedOrderbookFromApi,
@@ -337,6 +358,66 @@ export class AlphaClient {
    */
   async getStakingPosition(walletAddress?: string): Promise<StakingPosition> {
     return getStakingPosition(this.config, walletAddress);
+  }
+
+  // ============================================
+  // Perps (ALGO/USD LP-vault perpetual DEX)
+  // ============================================
+
+  /** Opens a leveraged long/short position (grouped MBR + USDC collateral + call). */
+  async openPerpPosition(params: OpenPerpParams): Promise<PerpActionResult> {
+    return openPosition(this.config, params);
+  }
+
+  /** Closes the caller's position in full at the skew-adjusted exec price. */
+  async closePerpPosition(params: ClosePerpParams): Promise<PerpActionResult> {
+    return closePosition(this.config, params);
+  }
+
+  /** Permissionless liquidation of an underwater trader (for keepers). */
+  async liquidatePerp(trader: string): Promise<PerpActionResult> {
+    return liquidate(this.config, trader);
+  }
+
+  /** Deposits USDC into the perps LP vault. */
+  async perpsLpDeposit(params: LpDepositParams): Promise<PerpActionResult> {
+    return lpDeposit(this.config, params);
+  }
+
+  /** Burns LP shares for USDC. */
+  async perpsLpWithdraw(params: LpWithdrawParams): Promise<PerpActionResult> {
+    return lpWithdraw(this.config, params);
+  }
+
+  /** Permissionless keeper checkpoint (accrue funding + re-derive rates). */
+  async perpsPoke(): Promise<PerpActionResult> {
+    return poke(this.config);
+  }
+
+  /** Reads the decoded perps market global state (params + aggregates + funding). */
+  async getPerpsMarket(): Promise<PerpsMarket> {
+    return getPerpsMarket(this.config);
+  }
+
+  /** Reads a wallet's raw perps position box (or null). */
+  async getPerpPosition(walletAddress?: string): Promise<PerpPosition | null> {
+    return getPosition(this.config, walletAddress);
+  }
+
+  /** Reads a wallet's perps position enriched with a live mark (PnL, equity, liq price). */
+  async getPerpPositionView(walletAddress?: string): Promise<PerpPositionView | null> {
+    return getPositionView(this.config, walletAddress);
+  }
+
+  /** Reads a wallet's perps LP share balance. */
+  async getPerpsLpShares(walletAddress?: string): Promise<bigint> {
+    return getLpShares(this.config, walletAddress);
+  }
+
+  /** Reads the live Folks Feed mark (raw) for the perps oracle. */
+  async getPerpsMark(): Promise<bigint> {
+    const mkt = await getPerpsMarket(this.config);
+    return getMark(this.config.algodClient, mkt.oracleAppId, mkt.oracleAssetId);
   }
 
   // ============================================

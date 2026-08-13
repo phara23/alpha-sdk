@@ -74,6 +74,15 @@ export type {
   UnstakeAlphaParams,
   StakingActionResult,
   StakingPosition,
+  // Perps
+  OpenPerpParams,
+  ClosePerpParams,
+  LpDepositParams,
+  LpWithdrawParams,
+  PerpActionResult,
+  PerpsMarket,
+  PerpPosition,
+  PerpPositionView,
   // WebSocket
   AlphaWebSocketConfig,
   WsOrderbookAggregatedEntry,
@@ -104,6 +113,22 @@ export {
   claimStakingRewards,
   getStakingPosition,
 } from './modules/staking.js';
+export {
+  openPosition as openPerpPosition,
+  closePosition as closePerpPosition,
+  liquidate as liquidatePerp,
+  lpDeposit as perpsLpDeposit,
+  lpWithdraw as perpsLpWithdraw,
+  poke as perpsPoke,
+  getPerpsMarket,
+  getPosition as getPerpPosition,
+  getPositionView as getPerpPositionView,
+  getLpShares as getPerpsLpShares,
+  getMark as getPerpsMark,
+  execPrice as perpsExecPrice,
+  limitFromMark as perpsLimitFromMark,
+  buildPositionView as buildPerpPositionView,
+} from './modules/perps.js';
 export {
   DEFAULT_API_BASE_URL,
   DEFAULT_WSS_BASE_URL,
