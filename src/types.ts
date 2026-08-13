@@ -28,6 +28,108 @@ export type AlphaClientConfig = {
   stakingAppId?: number;
   /** ALPHA ASA ID (mainnet default: 2726252423) */
   alphaAssetId?: number;
+  /** ALGO/USD perps pool app ID (0 until deployed; set from runtime config) */
+  perpsAppId?: number;
+  /** Folks Feed Oracle app id used by the perps pool (mainnet: 1040271396) */
+  perpsOracleAppId?: number;
+};
+
+// ============================================
+// Perps Types (ALGO/USD LP-vault perp DEX)
+// ============================================
+
+/** Result of a perps state-changing action. */
+export type PerpActionResult = {
+  success: boolean;
+  txIds: string[];
+  confirmedRound: number;
+  /** ABI return value of the app call (e.g. entry_notional, payout, shares). */
+  returnValue?: bigint;
+};
+
+/** Open a position. `collateralMicro` USDC is escrowed; the entry fee comes out of it. */
+export type OpenPerpParams = {
+  isLong: boolean;
+  /** position size in base units (µALGO). */
+  sizeBase: number;
+  /** USDC collateral to deposit (µUSDC). */
+  collateralMicro: number;
+  /** slippage guard on the skew-adjusted exec price (FFO raw): max for long, min for short. */
+  limitPrice: number;
+};
+
+export type ClosePerpParams = {
+  /** slippage guard on the exec price (FFO raw): min for a long's sell, max for a short's buy. */
+  limitPrice: number;
+};
+
+export type LpDepositParams = { amountMicro: number };
+export type LpWithdrawParams = { shares: number; minAmountOutMicro: number };
+
+/** Decoded perps market global state (all µUSDC unless noted). */
+export type PerpsMarket = {
+  appId: number;
+  paused: boolean;
+  isSetup: boolean;
+  paramsSet: boolean;
+  usdcAssetId: number;
+  oracleAppId: number;
+  oracleAssetId: number;
+  notionalDivisor: bigint;
+  vaultAssets: bigint;
+  totalCollateral: bigint;
+  lpSharesTotal: bigint;
+  badDebtTotal: bigint;
+  longSizeBase: bigint;
+  shortSizeBase: bigint;
+  longEntryNotional: bigint;
+  shortEntryNotional: bigint;
+  openPositionsCount: bigint;
+  fundingIndexLong: bigint;
+  fundingIndexShort: bigint;
+  fundingRateLongBps: bigint;
+  fundingRateShortBps: bigint;
+  // risk params
+  maxPriceAge: bigint;
+  vaultCap: bigint;
+  maxLeverageX: bigint;
+  maxPositionNotional: bigint;
+  maxTotalOi: bigint;
+  maxNetExposure: bigint;
+  tradeFeeBps: bigint;
+  baseSpreadBps: bigint;
+  maxImpactBps: bigint;
+  fundingMaxBpsHr: bigint;
+  maintMarginBps: bigint;
+  liqRewardBps: bigint;
+  liqFlatReward: bigint;
+  reserveRatioBps: bigint;
+  minCollateral: bigint;
+};
+
+/** Raw decoded position box (b"p"+addr). */
+export type PerpPosition = {
+  address: string;
+  isLong: boolean;
+  sizeBase: bigint;
+  collateral: bigint;
+  entryNotional: bigint;
+  entryPrice: bigint;
+  entryFundingIndex: bigint;
+  openTs: bigint;
+};
+
+/** Position enriched with a live mark (all µUSDC unless noted). */
+export type PerpPositionView = PerpPosition & {
+  /** FFO raw mark used for the view. */
+  mark: bigint;
+  notionalNow: bigint;
+  fundingOwed: bigint;
+  unrealizedPnl: bigint; // signed
+  equity: bigint; // collateral + pnl - funding, floored at 0
+  /** estimated liquidation price (FFO raw), ignoring future funding growth. 0 if n/a. */
+  liqPrice: bigint;
+  leverageX: number;
 };
 
 // ============================================
