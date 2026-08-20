@@ -36,33 +36,54 @@ for await (const event of session) {
       console.log("combo_rfq_request: ", JSON.stringify(event, null, 2));
 
       // ── Pricing ──────────────────────────────────────────────────────────
-      // It's a REVERSE auction: the LOWEST YES price wins the taker's flow, and
-      // you only win by beating Alpha's house quote (never broadcast to you).
-      // Every request carries `fairPriceMicro` — the whole-combo FAIR probability
-      // (pre-edge, micro). It's your anchor: quote just above fair so you keep an
-      // edge but still undercut Alpha's marked-up house price.
+      // When present, `fairPriceMicro` is the whole-combo FAIR probability
+      // (pre-edge, micro) — an anchor so you can compete without a local model.
       //
-      // Each leg carries what you need to price it independently instead:
+      // When ABSENT, Alpha could not live-price this combo (a SELL/cash-out
+      // whose legs have no Polymarket book). You MUST price `event.tree`
+      // yourself:
       //   • AA legs:  { marketId, marketAppId, selection, description }
       //               → read the on-chain order book by `marketAppId`.
       //   • SGP legs: { graderId, sgp, league, eventId, description }
       //               → price from your own OddsBlaze feed (same-game correlation
       //                 needs the BlazeBuilder `sgp` token).
-      // Real makers price from their own model/cache to stay inside the ~1s
-      // window; the fair anchor lets you compete on day one without one.
       const fair = event.fairPriceMicro;
       if (fair == null) {
-        // No anchor (older server) and no local model → skip rather than misprice.
-        console.log(`skip ${event.rfqId}: no fair anchor and no local pricer`);
+        console.log(`skip ${event.rfqId}: no fairPriceMicro — price this combo from the tree yourself`);
         continue;
       }
-      const priceMicro = fair + MIN_EDGE_MICRO; // quote fair + your edge
-      // Settlement funds the OTHER side: if you win you post (1e6 - priceMicro)
-      // per contract, so a lower YES price means you post MORE — that's where a
-      // long-shot combo's edge (its likely miss) is realised.
-      await session.quote(event, { priceMicro });
-      console.log(`quoted ${priceMicro}µ on ${event.rfqId} (fair ${fair}µ + ${MIN_EDGE_MICRO}µ edge)`);
-      continue;
+
+      const side = event.side;
+      let priceMicro: number;
+      if (side === 'sell') {
+        // SELL (cash-out) — a FORWARD auction. The taker is SELLING their YES and
+        // you BUY it. You compete by BIDDING HIGHER, and must beat Alpha's own
+        // cash-out offer (`alphaPriceMicro`, broadcast on sell) to win — but stay
+        // BELOW fair so the discount is your edge. If you win you fund the YES buy
+        // (~ floor(qty·price) + fee USDC) and opt into the YES asset; your edge is
+        // fair − price, realised if the combo hits (you paid < $1/share for it).
+        const bid = fair - MIN_EDGE_MICRO; // quote fair − your edge
+        const alpha = event.alphaPriceMicro;
+        if (alpha != null && bid <= alpha) {
+          console.log(`skip ${event.rfqId}: fair−edge ${bid}µ can't beat Alpha ${alpha}µ`);
+          continue;
+        }
+        priceMicro = bid;
+        await session.quote(event, { priceMicro });
+        console.log(`SELL quoted ${priceMicro}µ on ${event.rfqId} (fair ${fair}µ − ${MIN_EDGE_MICRO}µ edge${alpha != null ? `, beats Alpha ${alpha}µ` : ', no Alpha reserve'})`);
+      } else if (side === 'buy') {
+        // BUY — a REVERSE auction: the LOWEST YES price wins, and you only win by
+        // beating Alpha's house quote (never broadcast). Quote just above fair so
+        // you keep an edge but still undercut Alpha. If you win you post the NO
+        // collateral (1e6 − priceMicro) per contract — a lower YES price posts
+        // MORE, which is where a long-shot combo's edge (its likely miss) lives.
+        priceMicro = fair + MIN_EDGE_MICRO; // quote fair + your edge
+        await session.quote(event, { priceMicro });
+        console.log(`BUY quoted ${priceMicro}µ on ${event.rfqId} (fair ${fair}µ + ${MIN_EDGE_MICRO}µ edge)`);
+      } else {
+        console.log(`skip ${event.rfqId}: unknown side ${side}`);
+        continue;
+      }
     }
 
     if (event.type === 'combo_rfq_fill_request') {
@@ -71,7 +92,11 @@ for await (const event of session) {
         continue;
       }
 
-      console.log("combo_rfq_fill_request: ", JSON.stringify(event, null, 2));
+      // `session.confirm` signs EVERY txn in `event.unsignedMakerTxns` blindly, so
+      // the same call works for both sides — on a BUY it signs your NO-lay legs, on
+      // a SELL your YES-buy legs. Production makers should decode + re-verify the
+      // group (price, quantity, asset, group id) before signing.
+      console.log(`combo_rfq_fill_request (${event.side ?? 'buy'}): `, JSON.stringify(event, null, 2));
       await session.confirm(event);
     }
   } catch (error) {

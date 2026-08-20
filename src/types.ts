@@ -745,23 +745,50 @@ export type SubmitComboRfqResult = {
   [key: string]: unknown;
 };
 
+/** Which side of the book the taker is on. `buy` (default / absent) = a combo
+ *  purchase (taker buys YES, you lay NO — quote fair+edge, compete by going
+ *  LOWER, settle by posting NO collateral). `sell` = a portfolio cash-out (taker
+ *  sells YES, you BUY it — quote fair−edge, compete by going HIGHER than
+ *  `alphaPriceMicro`, settle by funding the YES buy). */
+export type ComboRfqSide = 'buy' | 'sell';
+
 export type ComboRfqRequestEvent = {
   type: 'combo_rfq_request';
+  /** Taker side. Absent ⇒ 'buy' (legacy). */
+  side?: ComboRfqSide;
   rfqId: string;
   tree: ComboRfqTree;
   grossStakeMicro: number;
-  /** Whole-combo FAIR probability (micro, pre-edge) — the maker's anchor. Fair
-   *  is computable by any maker with the odds (leaks no Alpha margin) and lets
-   *  you price without a /combo/price round trip. NOT per-leg and NOT Alpha's
-   *  quoted price — quote below fair+edge to compete. */
+  /** Whole-combo FAIR probability (micro, pre-edge) — the maker's anchor when
+   *  Alpha could live-price the tree. Fair is computable by any maker with the
+   *  odds (leaks no Alpha margin) and lets you price without a /combo/price
+   *  round trip. NOT per-leg. On a BUY, quote ABOVE fair+edge and compete by
+   *  going lower; on a SELL, quote BELOW fair−edge and compete by going higher.
+   *
+   *  **Absent when Alpha could not live-price the combo** (typically a SELL /
+   *  cash-out whose legs have no Polymarket book). You MUST price `tree`
+   *  yourself from AA order books / your SGP feed — do not skip these RFQs
+   *  unless you have no model. `alphaPriceMicro` is also omitted in that case
+   *  (there is no house reserve to beat). */
   fairPriceMicro?: number;
   quoteDeadline: number;
-  /** @deprecated Alpha house price is no longer broadcast to competing makers. */
+  /** BUY: not broadcast (Alpha's marked-up price is hidden). SELL: Alpha's own
+   *  cash-out offer — the reserve you must BEAT UPWARD to win the seller's YES.
+   *  Omitted on SELL when Alpha could not live-price (same cases as missing
+   *  `fairPriceMicro`); any valid bid can then win. */
   alphaPriceMicro?: number;
+  /** SELL only — the full YES position being cashed out (micro shares). */
+  quantityMicro?: number;
+  /** SELL only — the combo pool market id / app id + YES asset, for hedging. */
+  marketId?: string;
+  marketAppId?: number;
+  yesAssetId?: number;
 };
 
 export type ComboRfqFillRequestEvent = {
   type: 'combo_rfq_fill_request';
+  /** Taker side (default 'buy'). On 'sell' the maker legs BUY the taker's YES. */
+  side?: ComboRfqSide;
   rfqId: string;
   quoteId: string;
   comboQuoteId: string;
