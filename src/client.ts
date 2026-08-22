@@ -76,6 +76,8 @@ import {
   getPositionView,
   getLpShares,
   getMark,
+  reportOracleDown,
+  readAllPositions,
 } from './modules/perps.js';
 import {
   getFullOrderbookFromApi,
@@ -392,6 +394,20 @@ export class AlphaClient {
   /** Permissionless keeper checkpoint (accrue funding + re-derive rates). */
   async perpsPoke(): Promise<PerpActionResult> {
     return poke(this.config);
+  }
+
+  /**
+   * Permissionless attestation of an oracle outage — the only call that
+   * succeeds while the feed is stale. Returns the resulting oracle_down_since
+   * (0 = feed fine). Must be re-run at least every 2 days through an outage.
+   */
+  async perpsReportOracleDown(): Promise<PerpActionResult> {
+    return reportOracleDown(this.config);
+  }
+
+  /** Every open perps position (box scan) — what a liquidation keeper reads. */
+  async getAllPerpPositions(): Promise<PerpPosition[]> {
+    return readAllPositions(this.config);
   }
 
   /** Reads the decoded perps market global state (params + aggregates + funding). */
