@@ -120,6 +120,8 @@ export {
   lpDeposit as perpsLpDeposit,
   lpWithdraw as perpsLpWithdraw,
   poke as perpsPoke,
+  reportOracleDown as perpsReportOracleDown,
+  readAllPositions as readAllPerpPositions,
   getPerpsMarket,
   getPosition as getPerpPosition,
   getPositionView as getPerpPositionView,
