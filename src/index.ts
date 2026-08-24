@@ -105,6 +105,27 @@ export type {
 
 // Market discovery
 export { getMarketsOnChain, getMarketOnChain, getLiveMarketsFromApi, getMarketFromApi } from './modules/markets.js';
+export {
+  getResolutionState,
+  proposeResolution,
+  disputeResolution,
+  finalizeResolution,
+  claimResolutionBond,
+  getResolutionMarkets,
+  getWalletResolutionBonds,
+} from './modules/resolution.js';
+export type {
+  ResolutionState,
+  ResolutionBondSlot,
+  ResolutionOutcomeValue,
+  ResolutionActionResult,
+  ProposeResolutionParams,
+  DisputeResolutionParams,
+  FinalizeResolutionParams,
+  ClaimResolutionBondParams,
+  ResolutionMarketSummary,
+  WalletResolutionBond,
+} from './types.js';
 export { getRoutedOrderbookFromApi } from './modules/orderbook.js';
 export { getCrossVenueConfig, requestRfqQuote, submitRoutedOrder } from './modules/crossVenue.js';
 export { requestComboRfqQuote, submitComboRfqWallet, signComboRfqTransactions } from './modules/comboRfq.js';
@@ -139,6 +160,8 @@ export {
   DEFAULT_STAKING_APP_ID,
   DEFAULT_ALPHA_ASSET_ID,
   STAKING_REWARD_PRECISION,
+  RESOLUTION_OUTCOME,
+  DEFAULT_LITE_REWARDS_APP_ID,
 } from './constants.js';
 
 // Utility functions (for advanced users)
