@@ -301,6 +301,56 @@ See `examples/stake-alpha.ts` for a runnable script (`TEST_MNEMONIC` required).
 
 ---
 
+### Community Resolution (Oracle-Lite)
+
+Propose, dispute, finalize, and claim on community-resolved markets (the markets shown on /governance — `oracleAppId` on the market row). Actions are **fully on-chain** (algod only); the two list reads use the REST API.
+
+Proposing is bonded: you post the base bond (25 USDC on current markets) with your assertion. If nobody disputes within the window, finalization returns your bond **and pays you the proposer reward (50 ALPHA)** in the same transaction — the SDK handles the reward mechanics automatically, including an ALPHA opt-in at propose time if your wallet lacks one. A lost dispute forfeits the bond, so only propose outcomes you can defend.
+
+```typescript
+import { RESOLUTION_OUTCOME } from '@alpha-arcade/sdk';
+
+// What can I resolve?
+const markets = await client.getResolutionMarkets();
+
+// Full on-chain state of one market's oracle
+const state = await client.getResolutionState(markets[0].oracleAppId);
+// state.status: 0 none, 1 proposed, 2 disputed, 3 resolved
+// state.rewardsAppId !== 0 -> proposer rewards are active on this market
+
+// Propose the outcome (posts the USDC bond)
+await client.proposeResolution({
+  oracleAppId: markets[0].oracleAppId,
+  outcome: RESOLUTION_OUTCOME.YES, // 0 No, 1 Yes, 2 fifty/fifty
+});
+
+// Disagree with someone's live proposal? Challenge it under a 2x bond —
+// the market goes to the arbiter. KEEP_OPEN = "not resolvable yet".
+await client.disputeResolution({ oracleAppId, outcome: RESOLUTION_OUTCOME.NO });
+
+// After the window lapses undisputed, anyone may finalize (the keeper cron
+// also does this) — the proposer gets bond + ALPHA reward:
+await client.finalizeResolution({ oracleAppId });
+
+// Pull your settled bond (or any bonder's — payout always goes to the bonder)
+await client.claimResolutionBond({ oracleAppId });
+
+// Your live + claimable bonds across all markets
+const bonds = await client.getWalletResolutionBonds();
+```
+
+| Method | Description |
+|--------|-------------|
+| `getResolutionMarkets()` | Lite-resolved markets (REST) |
+| `getResolutionState(oracleAppId)` | Full on-chain oracle state |
+| `proposeResolution({ oracleAppId, outcome })` | Bonded outcome proposal (auto ALPHA opt-in on reward-armed markets) |
+| `disputeResolution({ oracleAppId, outcome })` | 2x-bond challenge; `KEEP_OPEN` (3) allowed |
+| `finalizeResolution({ oracleAppId })` | Permissionless settle; pays the proposer reward on armed markets |
+| `claimResolutionBond({ oracleAppId, bonder? })` | Pull a settled bond payout |
+| `getWalletResolutionBonds(wallet?)` | A wallet's bonds (REST) |
+
+---
+
 ### Orderbook
 
 #### `getOrderbook(marketAppId)`
@@ -872,6 +922,48 @@ Runnable example: `examples/combo-rfq-maker.ts`
 ```bash
 ALPHA_API_KEY=... TEST_MNEMONIC=... npx tsx examples/combo-rfq-maker.ts
 ```
+
+---
+
+### Perps (ALGO/USD LP-vault perpetual DEX)
+
+Leveraged long/short ALGO/USD against an LP vault, priced by the Folks Feed Oracle. **Fully on-chain** (algod only). Prices are FFO raw units; sizes are µALGO base; collateral is µUSDC.
+
+```typescript
+// Market snapshot (OI, skew, funding, params) and mark price
+const market = await client.getPerpsMarket();
+const mark = await client.getPerpsMark();
+
+// Open a 2x long: 100 ALGO base size against 50 USDC less fees
+await client.openPerpPosition({
+  isLong: true,
+  sizeBase: 100_000_000,        // µALGO
+  collateralMicro: 50_000_000,  // µUSDC
+  limitPrice: Number(mark) + 1_000, // slippage guard (max for a long)
+});
+
+// Live position with PnL / liq price
+const view = await client.getPerpPositionView();
+
+// Close in full at the skew-adjusted exec price
+await client.closePerpPosition({ limitPrice: Number(mark) - 1_000 });
+
+// LP side: deposit/withdraw USDC into the vault
+await client.perpsLpDeposit({ amountMicro: 1_000_000_000, minSharesOut: 0 });
+const shares = await client.getPerpsLpShares();
+await client.perpsLpWithdraw({ shares: Number(shares), minAmountOutMicro: 0 });
+```
+
+| Method | Description |
+|--------|-------------|
+| `openPerpPosition({ isLong, sizeBase, collateralMicro, limitPrice })` | Open a leveraged position |
+| `closePerpPosition({ limitPrice })` | Close your position in full |
+| `getPerpsMarket()` / `getPerpsMark()` | Market snapshot / mark price |
+| `getPerpPosition(wallet?)` / `getPerpPositionView(wallet?)` | Raw / enriched position |
+| `getAllPerpPositions()` | Every open position (keeper tooling) |
+| `liquidatePerp(trader)` | Permissionless liquidation of an underwater trader |
+| `perpsLpDeposit({ amountMicro, minSharesOut })` / `perpsLpWithdraw({ shares, minAmountOutMicro })` / `getPerpsLpShares(wallet?)` | LP vault |
+| `perpsPoke()` / `perpsReportOracleDown()` | Keeper maintenance calls |
 
 ---
 
