@@ -35,6 +35,14 @@ import type {
   UnstakeAlphaParams,
   StakingActionResult,
   StakingPosition,
+  ResolutionState,
+  ResolutionActionResult,
+  ProposeResolutionParams,
+  DisputeResolutionParams,
+  FinalizeResolutionParams,
+  ClaimResolutionBondParams,
+  ResolutionMarketSummary,
+  WalletResolutionBond,
   OpenPerpParams,
   ClosePerpParams,
   LpDepositParams,
@@ -64,6 +72,15 @@ import {
   claimStakingRewards,
   getStakingPosition,
 } from './modules/staking.js';
+import {
+  getResolutionState,
+  proposeResolution,
+  disputeResolution,
+  finalizeResolution,
+  claimResolutionBond,
+  getResolutionMarkets,
+  getWalletResolutionBonds,
+} from './modules/resolution.js';
 import {
   openPosition,
   closePosition,
@@ -360,6 +377,64 @@ export class AlphaClient {
    */
   async getStakingPosition(walletAddress?: string): Promise<StakingPosition> {
     return getStakingPosition(this.config, walletAddress);
+  }
+
+  // ============================================
+  // Community resolution (Oracle-Lite)
+  // ============================================
+
+  /**
+   * Reads the full on-chain state of a market's Oracle-Lite resolution app
+   * (status, bonds, deadline, proposer-reward arming).
+   */
+  async getResolutionState(oracleAppId: number): Promise<ResolutionState> {
+    return getResolutionState(this.config, oracleAppId);
+  }
+
+  /**
+   * Proposes a market's outcome under a USDC bond (group: bond axfer +
+   * propose call). If nobody disputes within the window, finalization returns
+   * the bond and — on armed oracles — pays the ALPHA proposer reward.
+   *
+   * @param params - `oracleAppId` + `outcome` (0 No, 1 Yes, 2 fifty/fifty)
+   */
+  async proposeResolution(params: ProposeResolutionParams): Promise<ResolutionActionResult> {
+    return proposeResolution(this.config, params);
+  }
+
+  /**
+   * Disputes a live proposal under a 2x USDC bond — the market goes straight
+   * to the arbiter. `outcome` may be 3 (KEEP_OPEN = "not resolvable yet").
+   */
+  async disputeResolution(params: DisputeResolutionParams): Promise<ResolutionActionResult> {
+    return disputeResolution(this.config, params);
+  }
+
+  /**
+   * Finalizes an unchallenged proposal after its window lapses. Permissionless.
+   * Handles armed oracles automatically (4x fee + reward-vault references so
+   * the proposer's ALPHA reward pays in the same transaction).
+   */
+  async finalizeResolution(params: FinalizeResolutionParams): Promise<ResolutionActionResult> {
+    return finalizeResolution(this.config, params);
+  }
+
+  /**
+   * Pulls a settled resolution-bond payout (yours, or any bonder's via
+   * `bonder` — the payout always goes to the bonder).
+   */
+  async claimResolutionBond(params: ClaimResolutionBondParams): Promise<ResolutionActionResult> {
+    return claimResolutionBond(this.config, params);
+  }
+
+  /** Lists lite-resolved markets (Alpha REST API). */
+  async getResolutionMarkets(): Promise<ResolutionMarketSummary[]> {
+    return getResolutionMarkets(this.config);
+  }
+
+  /** A wallet's live/claimable resolution bonds (defaults to activeAddress). */
+  async getWalletResolutionBonds(wallet?: string): Promise<WalletResolutionBond[]> {
+    return getWalletResolutionBonds(this.config, wallet);
   }
 
   // ============================================

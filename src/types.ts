@@ -1089,3 +1089,121 @@ export type StakingPosition = {
   /** Share of the pool in basis points (staked / totalStaked * 10_000), or 0 */
   poolShareBps: number;
 };
+
+// ============================================
+// Community resolution (Oracle-Lite)
+// ============================================
+
+/** Outcome values for propose/dispute. KEEP_OPEN (3) is dispute-only. */
+export type ResolutionOutcomeValue = 0 | 1 | 2 | 3;
+
+/** One bond slot (proposer or disputer) on an Oracle-Lite app. */
+export type ResolutionBondSlot = {
+  /** Bonder address ('' if the slot is empty) */
+  addr: string;
+  /** Bond posted, micro-USDC */
+  amountMicro: number;
+  /** Settled amount pullable right now, micro-USDC */
+  claimableMicro: number;
+};
+
+/**
+ * Full on-chain state of a market's Oracle-Lite resolution app.
+ * status: 0 none, 1 proposed, 2 disputed, 3 resolved.
+ */
+export type ResolutionState = {
+  appId: number;
+  appAddress: string;
+  isSetup: boolean;
+  isLinked: boolean;
+  /** The bound market app id (inner resolve_market target) */
+  marketAppId: number;
+  /** Address that rules disputes */
+  arbiter: string;
+  /** USDC asset id used for bonds */
+  collateral: number;
+  /** Dispute/liveness window, seconds */
+  disputeWindow: number;
+  /** Base proposal bond, micro-USDC (dispute bond is 2x) */
+  baseBondMicro: number;
+  /** No proposal accepted before this unix ts (0 = open-ended) */
+  earliestProposeTs: number;
+  status: 0 | 1 | 2 | 3;
+  proposedOutcome: number;
+  disputedOutcome: number;
+  /** Unix seconds the dispute window closes (status 1) */
+  deadline: number;
+  /** Unix seconds the dispute was posted (0 = never disputed) */
+  disputeTs: number;
+  /** Final winning outcome once resolved */
+  winner: number;
+  resolvedTs: number;
+  proposer: ResolutionBondSlot;
+  disputer: ResolutionBondSlot;
+  /**
+   * Proposer-rewards vault app id this oracle is armed with (0 = off). Armed
+   * oracles pay the proposer an ALPHA reward inside finalize_undisputed.
+   */
+  rewardsAppId: number;
+};
+
+export type ProposeResolutionParams = {
+  /** The market's Oracle-Lite app id (oracleAppId on the market row) */
+  oracleAppId: number;
+  /** 0 = No, 1 = Yes, 2 = fifty/fifty */
+  outcome: 0 | 1 | 2;
+};
+
+export type DisputeResolutionParams = {
+  oracleAppId: number;
+  /** A concrete outcome (0/1/2) differing from the proposal, or 3 = KEEP_OPEN */
+  outcome: ResolutionOutcomeValue;
+};
+
+export type FinalizeResolutionParams = {
+  oracleAppId: number;
+};
+
+export type ClaimResolutionBondParams = {
+  oracleAppId: number;
+  /** Claim on behalf of this bonder (payout still goes to the bonder). Defaults to the active address. */
+  bonder?: string;
+};
+
+export type ResolutionActionResult = {
+  success: boolean;
+  txIds: string[];
+  confirmedRound: number;
+  /** claim actions only: micro-USDC pulled */
+  claimedMicro?: number;
+};
+
+/** One lite-resolved market from GET /resolution/markets. */
+export type ResolutionMarketSummary = {
+  id: string;
+  topic?: string;
+  slug?: string;
+  oracleAppId: number;
+  isResolved?: boolean;
+  endTs?: number;
+  parentId?: string;
+  [key: string]: unknown;
+};
+
+/** One wallet bond from GET /resolution/bonds. */
+export type WalletResolutionBond = {
+  appId: number;
+  marketId: string;
+  title: string;
+  slug?: string;
+  parentTitle?: string;
+  optionTitle?: string;
+  role: 'proposer' | 'disputer';
+  /** The outcome this slot asserted */
+  assertedOutcome: number;
+  /** Bond posted, micro-USDC */
+  amountMicro: number;
+  /** Settled amount pullable right now, micro-USDC */
+  claimableMicro: number;
+  state: Record<string, unknown>;
+};

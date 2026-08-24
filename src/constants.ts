@@ -32,3 +32,18 @@ export const PERPS_FUNDING_SCALE = 1_000_000_000_000n;
  */
 export const PERPS_POS_BOX_MBR = 41_300;
 export const PERPS_LP_BOX_MBR = 22_100;
+
+/** Oracle-Lite resolution outcomes. KEEP_OPEN is dispute-only. */
+export const RESOLUTION_OUTCOME = {
+  NO: 0,
+  YES: 1,
+  FIFTY_FIFTY: 2,
+  KEEP_OPEN: 3,
+} as const;
+
+/**
+ * Oracle-Lite proposer-reward vault app id (mainnet). Armed oracles carry this
+ * in their own ext_u1 global — the SDK reads it per-oracle, so this constant is
+ * informational.
+ */
+export const DEFAULT_LITE_REWARDS_APP_ID = 3683917541;
