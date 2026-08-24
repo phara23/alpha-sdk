@@ -57,7 +57,7 @@ const LIQUIDATE_METHOD = new algosdk.ABIMethod({
 });
 const LP_DEPOSIT_METHOD = new algosdk.ABIMethod({
   name: 'lp_deposit',
-  args: [],
+  args: [{ type: 'uint64', name: 'min_shares_out' }],
   returns: { type: 'uint64' },
 });
 const LP_WITHDRAW_METHOD = new algosdk.ABIMethod({
@@ -72,6 +72,11 @@ const POKE_METHOD = new algosdk.ABIMethod({
   name: 'poke',
   args: [],
   returns: { type: 'uint8' },
+});
+const REPORT_ORACLE_DOWN_METHOD = new algosdk.ABIMethod({
+  name: 'report_oracle_down',
+  args: [],
+  returns: { type: 'uint64' },
 });
 
 type PerpsIds = { perpsAppId: number; oracleAppId: number; usdcAssetId: number };
@@ -160,8 +165,12 @@ export const getPerpsMarket = async (config: AlphaClientConfig): Promise<PerpsMa
     openPositionsCount: u(s, 'open_positions_count'),
     fundingIndexLong: u(s, 'funding_index_long'),
     fundingIndexShort: u(s, 'funding_index_short'),
-    fundingRateLongBps: u(s, 'funding_rate_long_bps'),
-    fundingRateShortBps: u(s, 'funding_rate_short_bps'),
+    fundingRateLongUbps: u(s, 'funding_rate_long_ubps'),
+    fundingRateShortUbps: u(s, 'funding_rate_short_ubps'),
+    lastAccrualTs: u(s, 'last_accrual_ts'),
+    lastOracleTs: u(s, 'last_oracle_ts'),
+    oracleDownSince: u(s, 'oracle_down_since'),
+    oracleDownSeen: u(s, 'oracle_down_seen'),
     maxPriceAge: u(s, 'max_price_age'),
     vaultCap: u(s, 'vault_cap'),
     maxLeverageX: u(s, 'max_leverage_x'),
@@ -494,8 +503,9 @@ export const lpDeposit = async (
 ): Promise<PerpActionResult> => {
   const { algodClient, signer, activeAddress } = config;
   const { perpsAppId, oracleAppId, usdcAssetId } = resolveIds(config);
-  const { amountMicro } = params;
+  const { amountMicro, minSharesOut } = params;
   if (!Number.isInteger(amountMicro) || amountMicro <= 0) throw new Error('amountMicro must be a positive integer (µUSDC)');
+  if (!Number.isInteger(minSharesOut) || minSharesOut < 0) throw new Error('minSharesOut must be a non-negative integer');
 
   const sp = await algodClient.getTransactionParams().do();
   const appAddress = getApplicationAddress(perpsAppId).toString();
@@ -522,7 +532,7 @@ export const lpDeposit = async (
   atc.addMethodCall({
     appID: perpsAppId,
     method: LP_DEPOSIT_METHOD,
-    methodArgs: [],
+    methodArgs: [BigInt(minSharesOut)],
     sender: activeAddress,
     signer,
     suggestedParams: feeSp,
@@ -588,4 +598,81 @@ export const poke = async (config: AlphaClientConfig): Promise<PerpActionResult>
     appForeignApps: [oracleAppId],
   });
   return submit(atc, algodClient);
+};
+
+/**
+ * Permissionless attestation that the FFO feed is (or is no longer) stale.
+ * Returns the resulting `oracle_down_since` — 0 means the feed is currently
+ * fine. This is the ONLY call that both SUCCEEDS and records an outage: `poke`
+ * needs a price fresh enough to trade on, so it reverts exactly when the feed
+ * is broken.
+ *
+ * The outage must be attested CONTINUOUSLY — at least once every
+ * ORACLE_ATTEST_GAP (2 days) — or the clock restarts, so an attester bot should
+ * run DAILY. The emergency valve opens EMERGENCY_STALENESS (7 days) after the
+ * first stamp of an unbroken attestation chain.
+ */
+export const reportOracleDown = async (
+  config: AlphaClientConfig,
+): Promise<PerpActionResult> => {
+  const { algodClient, signer, activeAddress } = config;
+  const { perpsAppId, oracleAppId } = resolveIds(config);
+  const sp = await algodClient.getTransactionParams().do();
+  const feeSp: algosdk.SuggestedParams = { ...sp, fee: LP_FEE_MICRO, flatFee: true };
+  const atc = new AtomicTransactionComposer();
+  atc.addMethodCall({
+    appID: perpsAppId,
+    method: REPORT_ORACLE_DOWN_METHOD,
+    methodArgs: [],
+    sender: activeAddress,
+    signer,
+    suggestedParams: feeSp,
+    // MUST be present: an unavailable resource is a runtime error, not hasValue=0.
+    appForeignApps: [oracleAppId],
+  });
+  return submit(atc, algodClient);
+};
+
+/**
+ * Every open position, by enumerating the app's b"p"+addr boxes. This is what a
+ * keeper scans; there is no on-chain index. O(n) algod calls, which is fine at
+ * the launch caps (max_total_oi caps the book at a handful of positions).
+ */
+export const readAllPositions = async (
+  config: AlphaClientConfig,
+): Promise<PerpPosition[]> => {
+  const { algodClient } = config;
+  const { perpsAppId } = resolveIds(config);
+  const list: any = await algodClient.getApplicationBoxes(perpsAppId).do();
+  const prefix = 'p'.charCodeAt(0);
+  const names: Uint8Array[] = (list?.boxes ?? [])
+    .map((b: any) => toBytes(b.name))
+    // b"p" + 32-byte pubkey; the b"l" LP boxes share the app and must be skipped
+    .filter((n: Uint8Array) => n.length === 33 && n[0] === prefix);
+
+  const out: PerpPosition[] = [];
+  for (const name of names) {
+    let box: any;
+    try {
+      box = await algodClient.getApplicationBoxByName(perpsAppId, name).do();
+    } catch {
+      continue; // box closed between the list and the read
+    }
+    const v = toBytes(box?.value);
+    if (v.length < 56) continue;
+    const at = (o: number) => bytesToBigInt(v.slice(o, o + 8));
+    const sizeBase = at(8);
+    if (sizeBase === 0n) continue;
+    out.push({
+      address: algosdk.encodeAddress(name.slice(1)),
+      isLong: at(0) === 1n,
+      sizeBase,
+      collateral: at(16),
+      entryNotional: at(24),
+      entryPrice: at(32),
+      entryFundingIndex: at(40),
+      openTs: at(48),
+    });
+  }
+  return out;
 };

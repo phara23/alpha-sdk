@@ -63,7 +63,11 @@ export type ClosePerpParams = {
   limitPrice: number;
 };
 
-export type LpDepositParams = { amountMicro: number };
+export type LpDepositParams = {
+  amountMicro: number;
+  /** slippage guard: revert unless the deposit mints at least this many shares. */
+  minSharesOut: number;
+};
 export type LpWithdrawParams = { shares: number; minAmountOutMicro: number };
 
 /** Decoded perps market global state (all µUSDC unless noted). */
@@ -87,8 +91,15 @@ export type PerpsMarket = {
   openPositionsCount: bigint;
   fundingIndexLong: bigint;
   fundingIndexShort: bigint;
-  fundingRateLongBps: bigint;
-  fundingRateShortBps: bigint;
+  /** current funding rates in MICRO-bps per hour (contract key funding_rate_*_ubps). */
+  fundingRateLongUbps: bigint;
+  fundingRateShortUbps: bigint;
+  lastAccrualTs: bigint;
+  lastOracleTs: bigint;
+  /** emergency valve: block time the outage clock started (0 = feed fine). */
+  oracleDownSince: bigint;
+  /** emergency valve: block time of the most recent outage attestation. */
+  oracleDownSeen: bigint;
   // risk params
   maxPriceAge: bigint;
   vaultCap: bigint;
