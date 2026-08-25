@@ -30,6 +30,13 @@ export type AlphaClientConfig = {
   alphaAssetId?: number;
   /** ALGO/USD perps pool app ID (0 until deployed; set from runtime config) */
   perpsAppId?: number;
+  /**
+   * FIRST-PARTY OPS ONLY: skip the perps region gate (IP lookup that refuses
+   * risk-opening from restricted jurisdictions). For protocol-owned keepers
+   * and desks running on US-hosted infrastructure. Using this to trade from a
+   * restricted jurisdiction violates the Alpha Arcade terms of service.
+   */
+  disablePerpsRegionCheck?: boolean;
   /** Folks Feed Oracle app id used by the perps pool (mainnet: 1040271396) */
   perpsOracleAppId?: number;
 };

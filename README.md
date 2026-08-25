@@ -929,6 +929,8 @@ ALPHA_API_KEY=... TEST_MNEMONIC=... npx tsx examples/combo-rfq-maker.ts
 
 Leveraged long/short ALGO/USD against an LP vault, priced by the Folks Feed Oracle. **Fully on-chain** (algod only). Prices are FFO raw units; sizes are µALGO base; collateral is µUSDC.
 
+> **Restricted jurisdictions.** Perps are **not available** in the US, Canada, UK, Australia, New Zealand, Singapore, Hong Kong, Japan, China, India, Southeast Asia, or sanctioned jurisdictions (Cuba, Iran, North Korea, Syria, Russia, Belarus). `openPerpPosition` and `perpsLpDeposit` perform a best-effort IP region check and throw `PerpsRestrictedRegionError` from a restricted region; closing positions, withdrawing liquidity, and liquidations are never blocked. Trading from a restricted jurisdiction violates the Alpha Arcade terms of service regardless of any technical measure.
+
 ```typescript
 // Market snapshot (OI, skew, funding, params) and mark price
 const market = await client.getPerpsMarket();

@@ -165,6 +165,11 @@ export {
 } from './constants.js';
 
 // Utility functions (for advanced users)
+export {
+  PERPS_RESTRICTED_REGIONS,
+  PerpsRestrictedRegionError,
+  assertUnrestrictedRegion,
+} from './utils/region.js';
 export { calculateFee, calculateFeeFromTotal } from './utils/fees.js';
 export { calculateMatchingOrders } from './utils/matching.js';
 export { resolveRfqTradeTarget } from './utils/rfq.js';

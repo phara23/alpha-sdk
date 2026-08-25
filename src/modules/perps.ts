@@ -19,6 +19,7 @@ import {
   PERPS_LP_BOX_MBR,
 } from '../constants.js';
 import { checkAssetOptIn } from '../utils/state.js';
+import { assertUnrestrictedRegion } from '../utils/region.js';
 
 /**
  * ALGO/USD LP-vault perpetual DEX. Pure algod — no platform API.
@@ -402,6 +403,9 @@ export const openPosition = async (
   config: AlphaClientConfig,
   params: OpenPerpParams,
 ): Promise<PerpActionResult> => {
+  // risk-opening is region-gated (US + restricted jurisdictions); closing and
+  // liquidations never are — see utils/region.ts
+  await assertUnrestrictedRegion(config);
   const { algodClient, signer, activeAddress } = config;
   const { perpsAppId, oracleAppId, usdcAssetId } = resolveIds(config);
   const { isLong, sizeBase, collateralMicro, limitPrice } = params;
@@ -501,6 +505,9 @@ export const lpDeposit = async (
   config: AlphaClientConfig,
   params: LpDepositParams,
 ): Promise<PerpActionResult> => {
+  // adding liquidity is risk-opening too — region-gated like openPosition;
+  // lpWithdraw never is
+  await assertUnrestrictedRegion(config);
   const { algodClient, signer, activeAddress } = config;
   const { perpsAppId, oracleAppId, usdcAssetId } = resolveIds(config);
   const { amountMicro, minSharesOut } = params;
