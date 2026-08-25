@@ -929,20 +929,12 @@ ALPHA_API_KEY=... TEST_MNEMONIC=... npx tsx examples/combo-rfq-maker.ts
 
 Leveraged long/short ALGO/USD against an LP vault, priced by the Folks Feed Oracle. **Fully on-chain** (algod only). Prices are FFO raw units; sizes are µALGO base; collateral is µUSDC.
 
-> **Restricted jurisdictions.** Perps are **not available** in the US, Canada, UK, Australia, New Zealand, Singapore, Hong Kong, Japan, China, India, Southeast Asia, or sanctioned jurisdictions (Cuba, Iran, North Korea, Syria, Russia, Belarus). `openPerpPosition` and `perpsLpDeposit` perform a best-effort IP region check and throw `PerpsRestrictedRegionError` from a restricted region; closing positions, withdrawing liquidity, and liquidations are never blocked. Trading from a restricted jurisdiction violates the Alpha Arcade terms of service regardless of any technical measure.
+> **Restricted jurisdictions.** Perps are **not available** in the US, Canada, UK, Australia, New Zealand, Singapore, Hong Kong, Japan, China, India, Southeast Asia, or sanctioned jurisdictions (Cuba, Iran, North Korea, Syria, Russia, Belarus). For that reason the SDK **deliberately does not offer opening positions or depositing LP liquidity** — those exist only in the geofenced app. The SDK covers exits and monitoring: closing positions, withdrawing liquidity, liquidations (keepers), and every market/position read — so no one's funds are ever trapped. Trading from a restricted jurisdiction violates the Alpha Arcade terms of service.
 
 ```typescript
 // Market snapshot (OI, skew, funding, params) and mark price
 const market = await client.getPerpsMarket();
 const mark = await client.getPerpsMark();
-
-// Open a 2x long: 100 ALGO base size against 50 USDC less fees
-await client.openPerpPosition({
-  isLong: true,
-  sizeBase: 100_000_000,        // µALGO
-  collateralMicro: 50_000_000,  // µUSDC
-  limitPrice: Number(mark) + 1_000, // slippage guard (max for a long)
-});
 
 // Live position with PnL / liq price
 const view = await client.getPerpPositionView();
@@ -950,21 +942,19 @@ const view = await client.getPerpPositionView();
 // Close in full at the skew-adjusted exec price
 await client.closePerpPosition({ limitPrice: Number(mark) - 1_000 });
 
-// LP side: deposit/withdraw USDC into the vault
-await client.perpsLpDeposit({ amountMicro: 1_000_000_000, minSharesOut: 0 });
+// Withdraw LP liquidity from the vault
 const shares = await client.getPerpsLpShares();
 await client.perpsLpWithdraw({ shares: Number(shares), minAmountOutMicro: 0 });
 ```
 
 | Method | Description |
 |--------|-------------|
-| `openPerpPosition({ isLong, sizeBase, collateralMicro, limitPrice })` | Open a leveraged position |
 | `closePerpPosition({ limitPrice })` | Close your position in full |
 | `getPerpsMarket()` / `getPerpsMark()` | Market snapshot / mark price |
 | `getPerpPosition(wallet?)` / `getPerpPositionView(wallet?)` | Raw / enriched position |
 | `getAllPerpPositions()` | Every open position (keeper tooling) |
 | `liquidatePerp(trader)` | Permissionless liquidation of an underwater trader |
-| `perpsLpDeposit({ amountMicro, minSharesOut })` / `perpsLpWithdraw({ shares, minAmountOutMicro })` / `getPerpsLpShares(wallet?)` | LP vault |
+| `perpsLpWithdraw({ shares, minAmountOutMicro })` / `getPerpsLpShares(wallet?)` | LP vault exits |
 | `perpsPoke()` / `perpsReportOracleDown()` | Keeper maintenance calls |
 
 ---

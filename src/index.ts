@@ -75,9 +75,7 @@ export type {
   StakingActionResult,
   StakingPosition,
   // Perps
-  OpenPerpParams,
   ClosePerpParams,
-  LpDepositParams,
   LpWithdrawParams,
   PerpActionResult,
   PerpsMarket,
@@ -136,10 +134,8 @@ export {
   getStakingPosition,
 } from './modules/staking.js';
 export {
-  openPosition as openPerpPosition,
   closePosition as closePerpPosition,
   liquidate as liquidatePerp,
-  lpDeposit as perpsLpDeposit,
   lpWithdraw as perpsLpWithdraw,
   poke as perpsPoke,
   reportOracleDown as perpsReportOracleDown,
@@ -165,11 +161,6 @@ export {
 } from './constants.js';
 
 // Utility functions (for advanced users)
-export {
-  PERPS_RESTRICTED_REGIONS,
-  PerpsRestrictedRegionError,
-  assertUnrestrictedRegion,
-} from './utils/region.js';
 export { calculateFee, calculateFeeFromTotal } from './utils/fees.js';
 export { calculateMatchingOrders } from './utils/matching.js';
 export { resolveRfqTradeTarget } from './utils/rfq.js';

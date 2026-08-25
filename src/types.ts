@@ -30,13 +30,6 @@ export type AlphaClientConfig = {
   alphaAssetId?: number;
   /** ALGO/USD perps pool app ID (0 until deployed; set from runtime config) */
   perpsAppId?: number;
-  /**
-   * FIRST-PARTY OPS ONLY: skip the perps region gate (IP lookup that refuses
-   * risk-opening from restricted jurisdictions). For protocol-owned keepers
-   * and desks running on US-hosted infrastructure. Using this to trade from a
-   * restricted jurisdiction violates the Alpha Arcade terms of service.
-   */
-  disablePerpsRegionCheck?: boolean;
   /** Folks Feed Oracle app id used by the perps pool (mainnet: 1040271396) */
   perpsOracleAppId?: number;
 };
@@ -55,26 +48,11 @@ export type PerpActionResult = {
 };
 
 /** Open a position. `collateralMicro` USDC is escrowed; the entry fee comes out of it. */
-export type OpenPerpParams = {
-  isLong: boolean;
-  /** position size in base units (µALGO). */
-  sizeBase: number;
-  /** USDC collateral to deposit (µUSDC). */
-  collateralMicro: number;
-  /** slippage guard on the skew-adjusted exec price (FFO raw): max for long, min for short. */
-  limitPrice: number;
-};
-
 export type ClosePerpParams = {
   /** slippage guard on the exec price (FFO raw): min for a long's sell, max for a short's buy. */
   limitPrice: number;
 };
 
-export type LpDepositParams = {
-  amountMicro: number;
-  /** slippage guard: revert unless the deposit mints at least this many shares. */
-  minSharesOut: number;
-};
 export type LpWithdrawParams = { shares: number; minAmountOutMicro: number };
 
 /** Decoded perps market global state (all µUSDC unless noted). */
