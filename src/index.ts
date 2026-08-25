@@ -75,9 +75,7 @@ export type {
   StakingActionResult,
   StakingPosition,
   // Perps
-  OpenPerpParams,
   ClosePerpParams,
-  LpDepositParams,
   LpWithdrawParams,
   PerpActionResult,
   PerpsMarket,
@@ -136,10 +134,8 @@ export {
   getStakingPosition,
 } from './modules/staking.js';
 export {
-  openPosition as openPerpPosition,
   closePosition as closePerpPosition,
   liquidate as liquidatePerp,
-  lpDeposit as perpsLpDeposit,
   lpWithdraw as perpsLpWithdraw,
   poke as perpsPoke,
   reportOracleDown as perpsReportOracleDown,

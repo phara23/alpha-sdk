@@ -2,9 +2,7 @@ import * as algosdk from 'algosdk';
 import { AtomicTransactionComposer, getApplicationAddress } from 'algosdk';
 import type {
   AlphaClientConfig,
-  OpenPerpParams,
   ClosePerpParams,
-  LpDepositParams,
   LpWithdrawParams,
   PerpActionResult,
   PerpsMarket,
@@ -393,55 +391,6 @@ const submit = async (
   };
 };
 
-/**
- * Open a long/short position. Group: [Payment POS_BOX_MBR → app] + [axfer USDC
- * collateral → app] + [open_position call]. Collateral is `collateralMicro`;
- * the entry fee is taken from it on-chain.
- */
-export const openPosition = async (
-  config: AlphaClientConfig,
-  params: OpenPerpParams,
-): Promise<PerpActionResult> => {
-  const { algodClient, signer, activeAddress } = config;
-  const { perpsAppId, oracleAppId, usdcAssetId } = resolveIds(config);
-  const { isLong, sizeBase, collateralMicro, limitPrice } = params;
-  if (!Number.isInteger(sizeBase) || sizeBase <= 0) throw new Error('sizeBase must be a positive integer (µALGO)');
-  if (!Number.isInteger(collateralMicro) || collateralMicro <= 0) throw new Error('collateralMicro must be a positive integer (µUSDC)');
-  if (!Number.isInteger(limitPrice) || limitPrice <= 0) throw new Error('limitPrice must be a positive integer (FFO raw)');
-
-  const sp = await algodClient.getTransactionParams().do();
-  const appAddress = getApplicationAddress(perpsAppId).toString();
-  const feeSp: algosdk.SuggestedParams = { ...sp, fee: TRADE_FEE_MICRO, flatFee: true };
-  const atc = new AtomicTransactionComposer();
-
-  atc.addTransaction({
-    txn: algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-      sender: activeAddress, receiver: appAddress, amount: PERPS_POS_BOX_MBR, suggestedParams: sp,
-    }),
-    signer,
-  });
-  atc.addTransaction({
-    txn: algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-      sender: activeAddress, receiver: appAddress, amount: collateralMicro,
-      assetIndex: usdcAssetId, suggestedParams: sp,
-    }),
-    signer,
-  });
-  atc.addMethodCall({
-    appID: perpsAppId,
-    method: OPEN_METHOD,
-    methodArgs: [isLong ? 1 : 0, BigInt(sizeBase), BigInt(limitPrice)],
-    sender: activeAddress,
-    signer,
-    suggestedParams: feeSp,
-    appForeignApps: [oracleAppId],
-    appForeignAssets: [usdcAssetId],
-    boxes: [{ appIndex: perpsAppId, name: boxName('p', activeAddress) }],
-  });
-  return submit(atc, algodClient);
-};
-
-/** Close the caller's position in full at the skew-adjusted exec price. */
 export const closePosition = async (
   config: AlphaClientConfig,
   params: ClosePerpParams,
@@ -493,57 +442,6 @@ export const liquidate = async (
   return submit(atc, algodClient);
 };
 
-/**
- * Deposit USDC into the LP vault. Group: [Payment LP_BOX_MBR (first deposit
- * only)] + [axfer USDC] + [lp_deposit call].
- */
-export const lpDeposit = async (
-  config: AlphaClientConfig,
-  params: LpDepositParams,
-): Promise<PerpActionResult> => {
-  const { algodClient, signer, activeAddress } = config;
-  const { perpsAppId, oracleAppId, usdcAssetId } = resolveIds(config);
-  const { amountMicro, minSharesOut } = params;
-  if (!Number.isInteger(amountMicro) || amountMicro <= 0) throw new Error('amountMicro must be a positive integer (µUSDC)');
-  if (!Number.isInteger(minSharesOut) || minSharesOut < 0) throw new Error('minSharesOut must be a non-negative integer');
-
-  const sp = await algodClient.getTransactionParams().do();
-  const appAddress = getApplicationAddress(perpsAppId).toString();
-  const feeSp: algosdk.SuggestedParams = { ...sp, fee: LP_FEE_MICRO, flatFee: true };
-  const atc = new AtomicTransactionComposer();
-
-  // MBR payment only on the FIRST deposit (when the LP box doesn't exist yet).
-  const hasBox = await boxExists(algodClient, perpsAppId, boxName('l', activeAddress));
-  if (!hasBox) {
-    atc.addTransaction({
-      txn: algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-        sender: activeAddress, receiver: appAddress, amount: PERPS_LP_BOX_MBR, suggestedParams: sp,
-      }),
-      signer,
-    });
-  }
-  atc.addTransaction({
-    txn: algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-      sender: activeAddress, receiver: appAddress, amount: amountMicro,
-      assetIndex: usdcAssetId, suggestedParams: sp,
-    }),
-    signer,
-  });
-  atc.addMethodCall({
-    appID: perpsAppId,
-    method: LP_DEPOSIT_METHOD,
-    methodArgs: [BigInt(minSharesOut)],
-    sender: activeAddress,
-    signer,
-    suggestedParams: feeSp,
-    appForeignApps: [oracleAppId],
-    appForeignAssets: [usdcAssetId],
-    boxes: [{ appIndex: perpsAppId, name: boxName('l', activeAddress) }],
-  });
-  return submit(atc, algodClient);
-};
-
-/** Burn LP shares for USDC (adds a USDC opt-in if needed). */
 export const lpWithdraw = async (
   config: AlphaClientConfig,
   params: LpWithdrawParams,

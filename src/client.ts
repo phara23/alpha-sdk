@@ -43,9 +43,7 @@ import type {
   ClaimResolutionBondParams,
   ResolutionMarketSummary,
   WalletResolutionBond,
-  OpenPerpParams,
   ClosePerpParams,
-  LpDepositParams,
   LpWithdrawParams,
   PerpActionResult,
   PerpsMarket,
@@ -82,10 +80,8 @@ import {
   getWalletResolutionBonds,
 } from './modules/resolution.js';
 import {
-  openPosition,
   closePosition,
   liquidate,
-  lpDeposit,
   lpWithdraw,
   poke,
   getPerpsMarket,
@@ -441,12 +437,7 @@ export class AlphaClient {
   // Perps (ALGO/USD LP-vault perpetual DEX)
   // ============================================
 
-  /** Opens a leveraged long/short position (grouped MBR + USDC collateral + call). */
-  async openPerpPosition(params: OpenPerpParams): Promise<PerpActionResult> {
-    return openPosition(this.config, params);
-  }
-
-  /** Closes the caller's position in full at the skew-adjusted exec price. */
+    /** Closes the caller's position in full at the skew-adjusted exec price. */
   async closePerpPosition(params: ClosePerpParams): Promise<PerpActionResult> {
     return closePosition(this.config, params);
   }
@@ -456,12 +447,7 @@ export class AlphaClient {
     return liquidate(this.config, trader);
   }
 
-  /** Deposits USDC into the perps LP vault. */
-  async perpsLpDeposit(params: LpDepositParams): Promise<PerpActionResult> {
-    return lpDeposit(this.config, params);
-  }
-
-  /** Burns LP shares for USDC. */
+    /** Burns LP shares for USDC. */
   async perpsLpWithdraw(params: LpWithdrawParams): Promise<PerpActionResult> {
     return lpWithdraw(this.config, params);
   }
