@@ -1032,16 +1032,26 @@ export type WebSocketStreamEvent =
 // Staking Types
 // ============================================
 
-/** Stake ALPHA into the fee-sharing pool (microunits, 6 decimals). */
+/** Stake ALPHA or an LP/LST clone into a fee-sharing pool (microunits, 6 decimals). */
 export type StakeAlphaParams = {
-  /** Amount of ALPHA to stake, in microunits (1_000_000 = 1 ALPHA) */
+  /** Amount to stake, in microunits (1_000_000 = 1 token) */
   amount: number;
+  /** Target pool app id. Defaults to the ALPHA pool. */
+  stakingAppId?: number;
+  /** Stake ASA. Defaults to ALPHA. */
+  stakeAssetId?: number;
 };
 
-/** Unstake ALPHA from the pool (microunits, 6 decimals). */
+/** Unstake from a fee-sharing pool (microunits, 6 decimals). */
 export type UnstakeAlphaParams = {
-  /** Amount of ALPHA to unstake, in microunits (1_000_000 = 1 ALPHA) */
+  /** Amount to unstake, in microunits */
   amount: number;
+  stakingAppId?: number;
+  stakeAssetId?: number;
+};
+
+export type ClaimStakingParams = {
+  stakingAppId?: number;
 };
 
 /** Result of a staking write action (stake / unstake / claim). */

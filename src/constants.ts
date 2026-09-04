@@ -10,6 +10,49 @@ export const DEFAULT_STAKING_APP_ID = 3626756314;
 /** Mainnet ALPHA ASA ID (6 decimals) */
 export const DEFAULT_ALPHA_ASSET_ID = 2726252423;
 
+/** Mainnet Tinyman v2 ALPHA-USDC LP token */
+export const TINYMAN_ALPHA_USDC_LP_ASSET_ID = 2741116468;
+
+/** Mainnet Tinyman v2 ALPHA-ALGO LP token */
+export const TINYMAN_ALPHA_ALGO_LP_ASSET_ID = 2741164994;
+
+/** Mainnet Myth Finance alphaALGO dualSTAKE */
+export const MYTH_ALPHA_ALGO_ASSET_ID = 2944427000;
+
+/** Descriptor for a stakeable pool (ALPHA or an LP/LST clone). */
+export type StakingPoolKind = 'alpha' | 'lp' | 'lst';
+
+export const DEFAULT_STAKING_POOLS: {
+  id: string;
+  label: string;
+  stakeAssetId: number;
+  weight: number;
+  kind: StakingPoolKind;
+}[] = [
+  { id: 'alpha', label: 'ALPHA', stakeAssetId: DEFAULT_ALPHA_ASSET_ID, weight: 20, kind: 'alpha' },
+  {
+    id: 'tm-alpha-usdc',
+    label: 'Tinyman ALPHA-USDC LP',
+    stakeAssetId: TINYMAN_ALPHA_USDC_LP_ASSET_ID,
+    weight: 35,
+    kind: 'lp',
+  },
+  {
+    id: 'tm-alpha-algo',
+    label: 'Tinyman ALPHA-ALGO LP',
+    stakeAssetId: TINYMAN_ALPHA_ALGO_LP_ASSET_ID,
+    weight: 30,
+    kind: 'lp',
+  },
+  {
+    id: 'myth-alpha-algo',
+    label: 'Myth alphaALGO',
+    stakeAssetId: MYTH_ALPHA_ALGO_ASSET_ID,
+    weight: 15,
+    kind: 'lst',
+  },
+];
+
 /**
  * Reward-per-share precision used by the staking contract.
  * claimable = pending + floor(staked * (acc - acc_snapshot) / PRECISION)
