@@ -33,6 +33,7 @@ import type {
   SubmitComboRfqWalletParams,
   StakeAlphaParams,
   UnstakeAlphaParams,
+  ClaimStakingParams,
   StakingActionResult,
   StakingPosition,
   ResolutionState,
@@ -361,18 +362,22 @@ export class AlphaClient {
    *
    * @returns Transaction result
    */
-  async claimStakingRewards(): Promise<StakingActionResult> {
-    return claimStakingRewards(this.config);
+  async claimStakingRewards(params?: ClaimStakingParams): Promise<StakingActionResult> {
+    return claimStakingRewards(this.config, params);
   }
 
   /**
-   * Reads a wallet's on-chain staking position (staked ALPHA, claimable USDC, pool share).
+   * Reads a wallet's on-chain staking position (staked amount, claimable USDC, pool share).
    *
    * @param walletAddress - Optional wallet (defaults to activeAddress)
+   * @param stakingAppId - Optional pool app id (defaults to the ALPHA pool)
    * @returns On-chain staking position
    */
-  async getStakingPosition(walletAddress?: string): Promise<StakingPosition> {
-    return getStakingPosition(this.config, walletAddress);
+  async getStakingPosition(
+    walletAddress?: string,
+    stakingAppId?: number,
+  ): Promise<StakingPosition> {
+    return getStakingPosition(this.config, walletAddress, stakingAppId);
   }
 
   // ============================================

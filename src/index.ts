@@ -72,6 +72,7 @@ export type {
   // Staking
   StakeAlphaParams,
   UnstakeAlphaParams,
+  ClaimStakingParams,
   StakingActionResult,
   StakingPosition,
   // Perps
@@ -155,10 +156,15 @@ export {
   DEFAULT_MARKET_CREATOR_ADDRESS,
   DEFAULT_STAKING_APP_ID,
   DEFAULT_ALPHA_ASSET_ID,
+  TINYMAN_ALPHA_USDC_LP_ASSET_ID,
+  TINYMAN_ALPHA_ALGO_LP_ASSET_ID,
+  MYTH_ALPHA_ALGO_ASSET_ID,
+  DEFAULT_STAKING_POOLS,
   STAKING_REWARD_PRECISION,
   RESOLUTION_OUTCOME,
   DEFAULT_LITE_REWARDS_APP_ID,
 } from './constants.js';
+export type { StakingPoolKind } from './constants.js';
 
 // Utility functions (for advanced users)
 export { calculateFee, calculateFeeFromTotal } from './utils/fees.js';

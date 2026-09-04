@@ -4,6 +4,7 @@ import type {
   AlphaClientConfig,
   StakeAlphaParams,
   UnstakeAlphaParams,
+  ClaimStakingParams,
   StakingActionResult,
   StakingPosition,
 } from '../types.js';
@@ -47,9 +48,18 @@ type StakingIds = {
   usdcAssetId: number;
 };
 
-const resolveIds = (config: AlphaClientConfig): StakingIds => ({
-  stakingAppId: config.stakingAppId ?? DEFAULT_STAKING_APP_ID,
-  alphaAssetId: config.alphaAssetId ?? DEFAULT_ALPHA_ASSET_ID,
+const resolveIds = (
+  config: AlphaClientConfig,
+  override?: { stakingAppId?: number; stakeAssetId?: number },
+): StakingIds => ({
+  stakingAppId:
+    override?.stakingAppId && override.stakingAppId > 0
+      ? override.stakingAppId
+      : (config.stakingAppId ?? DEFAULT_STAKING_APP_ID),
+  alphaAssetId:
+    override?.stakeAssetId && override.stakeAssetId > 0
+      ? override.stakeAssetId
+      : (config.alphaAssetId ?? DEFAULT_ALPHA_ASSET_ID),
   usdcAssetId: config.usdcAssetId,
 });
 
@@ -143,22 +153,25 @@ export const stakeAlpha = async (
   params: StakeAlphaParams,
 ): Promise<StakingActionResult> => {
   const { algodClient, signer, activeAddress } = config;
-  const { amount } = params;
-  const { stakingAppId, alphaAssetId, usdcAssetId } = resolveIds(config);
+  const { amount, stakingAppId: poolAppId, stakeAssetId } = params;
+  const { stakingAppId, alphaAssetId, usdcAssetId } = resolveIds(config, {
+    stakingAppId: poolAppId,
+    stakeAssetId,
+  });
 
   if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) {
-    throw new Error('amount must be a positive integer in micro-ALPHA');
+    throw new Error('amount must be a positive integer in microunits');
   }
 
-  const alphaBalance = await getAssetBalanceMicro(algodClient, activeAddress, alphaAssetId);
-  if (alphaBalance <= 0) {
+  const tokenBalance = await getAssetBalanceMicro(algodClient, activeAddress, alphaAssetId);
+  if (tokenBalance <= 0) {
     throw new Error(
-      `Wallet has no ALPHA (ASA ${alphaAssetId}). Opt in and fund the wallet before staking.`,
+      `Wallet has no stake asset (ASA ${alphaAssetId}). Opt in and fund the wallet before staking.`,
     );
   }
-  if (alphaBalance < amount) {
+  if (tokenBalance < amount) {
     throw new Error(
-      `Insufficient ALPHA to stake: requested ${amount} micro, wallet has ${alphaBalance} micro.`,
+      `Insufficient stake asset: requested ${amount} micro, wallet has ${tokenBalance} micro.`,
     );
   }
 
@@ -215,25 +228,28 @@ export const unstakeAlpha = async (
   params: UnstakeAlphaParams,
 ): Promise<StakingActionResult> => {
   const { algodClient, signer, activeAddress } = config;
-  const { amount } = params;
-  const { stakingAppId, alphaAssetId, usdcAssetId } = resolveIds(config);
+  const { amount, stakingAppId: poolAppId, stakeAssetId } = params;
+  const { stakingAppId, alphaAssetId, usdcAssetId } = resolveIds(config, {
+    stakingAppId: poolAppId,
+    stakeAssetId,
+  });
 
   if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) {
-    throw new Error('amount must be a positive integer in micro-ALPHA');
+    throw new Error('amount must be a positive integer in microunits');
   }
 
   const staked = await getStakedMicro(algodClient, activeAddress, stakingAppId);
   if (staked === null) {
     throw new Error(
-      `Wallet is not opted into the staking app (${stakingAppId}). Stake ALPHA before unstaking.`,
+      `Wallet is not opted into the staking app (${stakingAppId}). Stake before unstaking.`,
     );
   }
   if (staked <= 0) {
-    throw new Error('No ALPHA staked to unstake.');
+    throw new Error('No stake to unstake.');
   }
   if (staked < amount) {
     throw new Error(
-      `Insufficient staked ALPHA to unstake: requested ${amount} micro, staked ${staked} micro.`,
+      `Insufficient staked amount to unstake: requested ${amount} micro, staked ${staked} micro.`,
     );
   }
 
@@ -265,9 +281,12 @@ export const unstakeAlpha = async (
  */
 export const claimStakingRewards = async (
   config: AlphaClientConfig,
+  params: ClaimStakingParams = {},
 ): Promise<StakingActionResult> => {
   const { algodClient, signer, activeAddress } = config;
-  const { stakingAppId, usdcAssetId } = resolveIds(config);
+  const { stakingAppId, usdcAssetId } = resolveIds(config, {
+    stakingAppId: params.stakingAppId,
+  });
 
   const sp = await algodClient.getTransactionParams().do();
   const atc = new AtomicTransactionComposer();
@@ -312,10 +331,13 @@ export const claimStakingRewards = async (
 export const getStakingPosition = async (
   config: AlphaClientConfig,
   walletAddress?: string,
+  stakingAppIdOverride?: number,
 ): Promise<StakingPosition> => {
   const { algodClient, activeAddress } = config;
   const wallet = walletAddress ?? activeAddress;
-  const { stakingAppId, usdcAssetId } = resolveIds(config);
+  const { stakingAppId, usdcAssetId } = resolveIds(config, {
+    stakingAppId: stakingAppIdOverride,
+  });
   const appAddress = getApplicationAddress(stakingAppId).toString();
 
   const [appInfo, accountInfo, poolAccountInfo] = await Promise.all([
