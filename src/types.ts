@@ -1,4 +1,4 @@
-import type { Algodv2, Indexer, TransactionSigner } from 'algosdk';
+import type { Algodv2, Indexer, Transaction, TransactionSigner } from 'algosdk';
 
 // ============================================
 // Client Configuration
@@ -258,6 +258,30 @@ export type CreateLimitOrderParams = {
   isBuying: boolean;
   /** Fee base in microunits (e.g. 70000 = 7%). If omitted, reads from market global state. */
   feeBase?: number;
+};
+
+/** FOK: price is the maximum buy price or minimum sell price, in microunits. */
+export type CreateFokOrderParams = CreateLimitOrderParams & {
+  /** Optional exact fills, revalidated against the native orderbook.
+   * Omit to select counterparties automatically, best price first. */
+  matchingOrders?: CounterpartyMatch[];
+};
+
+/** Unsigned FOK group. Sign and submit every transaction together, without modification. */
+export type BuildFokOrderResult = {
+  transactions: Transaction[];
+  groupId: Uint8Array;
+  createEscrowTxnIndex: number;
+  matchingOrders: CounterpartyMatch[];
+  matchedQuantity: number;
+  /** Quoted average price; maker amendments can change execution price within the limit. */
+  estimatedMatchedPrice: number;
+};
+
+/** Confirmed full fill, with the quoted (not actual execution) average price. */
+export type CreateFokOrderResult = CreateOrderResult & {
+  matchedQuantity: number;
+  estimatedMatchedPrice: number;
 };
 
 /** Parameters for creating a market order */
