@@ -1135,3 +1135,9 @@ production systems, or live markets.
 ## License
 
 MIT
+
+### ALPHA and USDC LP rewards
+
+USDC rewards remain in `totalRewards` and `totalPregameRewards` (six decimal places). Selected executable markets/outcomes also expose `alphaLpRewards`: `dailyMicro` for non-sports, `pregameDailyMicro` before a game, and `inGameMicro` for the fixed game pool. These are micro-ALPHA, not dollar values. `startsAt`, when present, is milliseconds since the epoch. Operator changes take effect on the next hour.
+
+Both assets use the same eligible order scores and hourly cadence. ALPHA's denominator contains only wallets with ALPHA asset opt-in at the sample. Without ALPHA opt-in, wallets still earn USDC. A later opt-in never earns ALPHA for earlier samples. Use each child outcome's configuration; do not copy a parent budget to every outcome. Pool amounts are not personal earnings estimates.

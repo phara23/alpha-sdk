@@ -304,21 +304,25 @@ export const getMarketFromApi = async (
 };
 
 type RewardedMarketLike = {
+  alphaLpRewards?: { dailyMicro?: number; pregameDailyMicro?: number; inGameMicro?: number; startsAt?: number };
   totalRewards?: number;
   totalPregameRewards?: number;
   options?: Array<{
+    alphaLpRewards?: { dailyMicro?: number; pregameDailyMicro?: number; inGameMicro?: number; startsAt?: number };
     totalRewards?: number;
     totalPregameRewards?: number;
   }>;
 };
 
+const hasAlphaRewards = (market: RewardedMarketLike): boolean => [market.alphaLpRewards?.dailyMicro, market.alphaLpRewards?.pregameDailyMicro, market.alphaLpRewards?.inGameMicro].some(amount => (amount || 0) > 0);
+
 const hasRewardLiquidity = (market: RewardedMarketLike): boolean => {
-  if ((market.totalRewards ?? 0) > 0 || (market.totalPregameRewards ?? 0) > 0) {
+  if ((market.totalRewards ?? 0) > 0 || (market.totalPregameRewards ?? 0) > 0 || hasAlphaRewards(market)) {
     return true;
   }
 
   return (market.options ?? []).some((option) => (
-    (option.totalRewards ?? 0) > 0 || (option.totalPregameRewards ?? 0) > 0
+    (option.totalRewards ?? 0) > 0 || (option.totalPregameRewards ?? 0) > 0 || hasAlphaRewards(option)
   ));
 };
 

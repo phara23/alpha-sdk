@@ -40,3 +40,6 @@ const main = async () => {
 };
 
 main().catch(console.error);
+
+// Optional ALPHA budgets are available on market.alphaLpRewards and each option.alphaLpRewards.
+// Values use micro-ALPHA. Opt in to the ALPHA ASA before expecting ALPHA scoring.

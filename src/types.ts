@@ -158,6 +158,8 @@ export type Market = {
   options?: MarketOption[];
   feeBase?: number;
   /** Liquidty Rewards Info */
+  /** Fixed micro-ALPHA budgets, independent of USDC. In-game is a total pool. */
+  alphaLpRewards?: { dailyMicro?: number; pregameDailyMicro?: number; inGameMicro?: number; startsAt?: number };
   totalRewards?: number;
   totalPregameRewards?: number;
   rewardsPaidOut?: number;
@@ -191,6 +193,8 @@ export type MarketOption = {
   noAssetId: number;
   yesProb: number;
   noProb: number;
+  /** Fixed micro-ALPHA budgets, independent of USDC. In-game is a total pool. */
+  alphaLpRewards?: { dailyMicro?: number; pregameDailyMicro?: number; inGameMicro?: number; startsAt?: number };
   totalRewards?: number;
   totalPregameRewards?: number;
   rewardsPaidOut?: number;
