@@ -626,6 +626,7 @@ for (const market of markets) {
 
 - USDC keeps the existing fields: `totalRewards`, `totalPregameRewards`, `rewardsPaidOut`, `lastRewardAmount`, and `lastRewardTs`. USDC amounts use six decimal places. `totalRewards` is a daily budget for non-sports markets and a fixed game pool for sports. `totalPregameRewards` is a pregame daily budget.
 - Optional `alphaLpRewards` uses the exported `AlphaLpRewards` type. `dailyMicro` is a non-sports daily budget; `pregameDailyMicro` is a pregame daily budget; `inGameMicro` is a fixed game pool. All amounts are micro-ALPHA: divide by 1,000,000 to display ALPHA. Never label them as dollars or add them to USDC totals.
+- Optional `alphaLpRewardsPaidOut` is the cumulative confirmed LP payout total in micro-ALPHA for that market or outcome. Divide by 1,000,000 to display ALPHA. It is independent of `rewardsPaidOut` (USDC) and does not include pending payouts. A value of `0` means no confirmed ALPHA payouts; an omitted field means the API has not supplied the total. Do not add a parent total to its outcome totals.
 - `startsAt` is Unix milliseconds. Operator changes take effect at the next hour. An existing hourly block keeps its frozen budget. An absent, empty, or all-zero ALPHA configuration means no ALPHA campaign; a future start is scheduled, not active.
 - `getLiveMarketsFromApi()` and `getMarketFromApi()` also preserve this configuration. On-chain market discovery cannot provide these operator-managed LP budgets.
 
