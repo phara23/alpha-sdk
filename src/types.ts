@@ -132,6 +132,18 @@ export type PerpPositionView = PerpPosition & {
 // Market Types
 // ============================================
 
+/** Fixed ALPHA LP pools. All amounts are micro-ALPHA (1 ALPHA = 1,000,000), never USD. */
+export type AlphaLpRewards = {
+  /** Non-sports budget per day. */
+  dailyMicro?: number;
+  /** Sports budget per day before gameStartTimeMs. */
+  pregameDailyMicro?: number;
+  /** Fixed total pool across the game, not a daily rate. */
+  inGameMicro?: number;
+  /** Campaign start in Unix milliseconds. Operator changes begin at the next hour. */
+  startsAt?: number;
+};
+
 /** A prediction market (from the Alpha API or on-chain discovery) */
 export type Market = {
   /** Market ID (app ID as string for on-chain, UUID for API) */
@@ -157,9 +169,8 @@ export type Market = {
   featured?: boolean;
   options?: MarketOption[];
   feeBase?: number;
-  /** Liquidty Rewards Info */
-  /** Fixed micro-ALPHA budgets, independent of USDC. In-game is a total pool. */
-  alphaLpRewards?: { dailyMicro?: number; pregameDailyMicro?: number; inGameMicro?: number; startsAt?: number };
+  /** ALPHA pool configuration, independent of USDC. Requires asset opt-in when sampled. */
+  alphaLpRewards?: AlphaLpRewards;
   totalRewards?: number;
   totalPregameRewards?: number;
   rewardsPaidOut?: number;
@@ -193,8 +204,8 @@ export type MarketOption = {
   noAssetId: number;
   yesProb: number;
   noProb: number;
-  /** Fixed micro-ALPHA budgets, independent of USDC. In-game is a total pool. */
-  alphaLpRewards?: { dailyMicro?: number; pregameDailyMicro?: number; inGameMicro?: number; startsAt?: number };
+  /** This outcome's ALPHA pool. Never copy a parent pool to each outcome. */
+  alphaLpRewards?: AlphaLpRewards;
   totalRewards?: number;
   totalPregameRewards?: number;
   rewardsPaidOut?: number;

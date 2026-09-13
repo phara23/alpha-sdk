@@ -600,15 +600,46 @@ const market = await client.getMarketFromApi('uuid-here');
 
 #### `getRewardMarkets()`
 
-Fetches markets that have liquidity rewards from the Alpha REST API. Requires `apiKey`. Returns the same `Market[]` shape with reward fields populated: `totalRewards`, `totalPregameRewards`, `rewardsPaidOut`, `rewardsSpreadDistance`, `rewardsMinContracts`, `lastRewardAmount`, `lastRewardTs`. For sports markets, pregame liquidity rewards may be exposed via `totalPregameRewards`.
+Fetches all markets with USDC or ALPHA liquidity reward pools, including rewarded child outcomes. Requires `apiKey`. `client.getRewardMarkets()` returns `Market[]`. The standalone function supports the same read without a wallet or signer:
 
 ```typescript
-const rewardMarkets = await client.getRewardMarkets();
-for (const m of rewardMarkets) {
-  const rewardTotal = m.totalRewards ?? m.totalPregameRewards ?? 0;
-  console.log(`${m.title}: $${rewardTotal / 1e6} total rewards`);
+import { getRewardMarkets, type AlphaLpRewards } from '@alpha-arcade/sdk';
+
+const markets = await getRewardMarkets({ apiKey: process.env.ALPHA_API_KEY });
+for (const market of markets) {
+  // Each executable child has its own pool. Do not multiply the parent pool.
+  const outcomes = market.options?.length ? market.options : [market];
+  for (const outcome of outcomes) {
+    const alpha: AlphaLpRewards | undefined = outcome.alphaLpRewards;
+    console.log(`${market.title} / ${outcome.title}`);
+    console.log('USDC pool:', (outcome.totalRewards ?? 0) / 1e6);
+    console.log('USDC pregame/day:', (outcome.totalPregameRewards ?? 0) / 1e6);
+    console.log('ALPHA/day:', (alpha?.dailyMicro ?? 0) / 1e6);
+    console.log('ALPHA pregame/day:', (alpha?.pregameDailyMicro ?? 0) / 1e6);
+    console.log('ALPHA game pool:', (alpha?.inGameMicro ?? 0) / 1e6);
+    if (alpha?.startsAt) console.log('ALPHA starts:', new Date(alpha.startsAt).toISOString());
+  }
 }
 ```
+
+**Token amounts and periods**
+
+- USDC keeps the existing fields: `totalRewards`, `totalPregameRewards`, `rewardsPaidOut`, `lastRewardAmount`, and `lastRewardTs`. USDC amounts use six decimal places. `totalRewards` is a daily budget for non-sports markets and a fixed game pool for sports. `totalPregameRewards` is a pregame daily budget.
+- Optional `alphaLpRewards` uses the exported `AlphaLpRewards` type. `dailyMicro` is a non-sports daily budget; `pregameDailyMicro` is a pregame daily budget; `inGameMicro` is a fixed game pool. All amounts are micro-ALPHA: divide by 1,000,000 to display ALPHA. Never label them as dollars or add them to USDC totals.
+- `startsAt` is Unix milliseconds. Operator changes take effect at the next hour. An existing hourly block keeps its frozen budget. An absent, empty, or all-zero ALPHA configuration means no ALPHA campaign; a future start is scheduled, not active.
+- `getLiveMarketsFromApi()` and `getMarketFromApi()` also preserve this configuration. On-chain market discovery cannot provide these operator-managed LP budgets.
+
+**Scoring and opt-in**
+
+Both tokens use the existing order size, age, spread, and market liquidity rules. `rewardsSpreadDistance`, `pregameRewardsSpreadDistance`, and `rewardsMinContracts` still describe those rules. Both tokens pay hourly; transfers can arrive separately.
+
+ALPHA adds an asset opt-in requirement. Each sample includes only opted-in, unfrozen ALPHA holdings in its ALPHA score denominator. Wallets without ALPHA opt-in still earn USDC. A later opt-in never earns ALPHA for earlier samples. Samples without ALPHA-eligible wallets leave that sample's allocation unspent. Failed holding checks also leave that sample's ALPHA allocation unspent. If a wallet opts out after earning, its ALPHA entitlement stays pending until it can receive ALPHA again.
+
+Opt in to the ALPHA asset on the same wallet that provides liquidity. Buying or staking ALPHA is not required. Mainnet ALPHA is ASA `2726252423`. For other deployments, read the asset ID from the backend's `/get-lp-reward-config` endpoint; do not assume the mainnet asset ID works on testnet. This read method does not sign an opt-in transaction.
+
+Pool sizes are market budgets, not personal earnings estimates. A wallet's ALPHA share can differ from its USDC share because each token has a separate denominator. Do not estimate ALPHA earnings by multiplying the wallet's USDC share by the ALPHA pool.
+
+See [`examples/get-reward-markets.ts`](examples/get-reward-markets.ts) for a runnable example that prints both tokens for each outcome.
 
 ---
 
@@ -1135,9 +1166,3 @@ production systems, or live markets.
 ## License
 
 MIT
-
-### ALPHA and USDC LP rewards
-
-USDC rewards remain in `totalRewards` and `totalPregameRewards` (six decimal places). Selected executable markets/outcomes also expose `alphaLpRewards`: `dailyMicro` for non-sports, `pregameDailyMicro` before a game, and `inGameMicro` for the fixed game pool. These are micro-ALPHA, not dollar values. `startsAt`, when present, is milliseconds since the epoch. Operator changes take effect on the next hour.
-
-Both assets use the same eligible order scores and hourly cadence. ALPHA's denominator contains only wallets with ALPHA asset opt-in at the sample. Without ALPHA opt-in, wallets still earn USDC. A later opt-in never earns ALPHA for earlier samples. Use each child outcome's configuration; do not copy a parent budget to every outcome. Pool amounts are not personal earnings estimates.

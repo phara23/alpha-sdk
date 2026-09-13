@@ -666,7 +666,9 @@ export class AlphaClient {
   }
 
   /**
-   * Fetches the reward markets from the Alpha REST API (requires API key).
+   * Fetches USDC/ALPHA reward markets and child outcome pools (requires API key).
+   * ALPHA pools use micro-ALPHA and require asset opt-in at each scoring sample.
+   * Wallets without ALPHA opt-in still earn USDC. Pool sizes are not personal earnings.
    *
    * @returns Array of reward markets
    */
