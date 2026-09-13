@@ -1,5 +1,5 @@
 import * as algosdk from 'algosdk';
-import type { AlphaClientConfig, Market, MarketGlobalState, MarketOption } from '../types.js';
+import type { AlphaClientConfig, AlphaLpRewards, Market, MarketGlobalState, MarketOption } from '../types.js';
 import { decodeGlobalState } from '../utils/state.js';
 import { DEFAULT_API_BASE_URL, DEFAULT_MARKET_CREATOR_ADDRESS } from '../constants.js';
 
@@ -304,33 +304,38 @@ export const getMarketFromApi = async (
 };
 
 type RewardedMarketLike = {
+  alphaLpRewards?: AlphaLpRewards;
   totalRewards?: number;
   totalPregameRewards?: number;
   options?: Array<{
+    alphaLpRewards?: AlphaLpRewards;
     totalRewards?: number;
     totalPregameRewards?: number;
   }>;
 };
 
+const hasAlphaRewards = (market: RewardedMarketLike): boolean => [market.alphaLpRewards?.dailyMicro, market.alphaLpRewards?.pregameDailyMicro, market.alphaLpRewards?.inGameMicro].some(amount => (amount || 0) > 0);
+
 const hasRewardLiquidity = (market: RewardedMarketLike): boolean => {
-  if ((market.totalRewards ?? 0) > 0 || (market.totalPregameRewards ?? 0) > 0) {
+  if ((market.totalRewards ?? 0) > 0 || (market.totalPregameRewards ?? 0) > 0 || hasAlphaRewards(market)) {
     return true;
   }
 
   return (market.options ?? []).some((option) => (
-    (option.totalRewards ?? 0) > 0 || (option.totalPregameRewards ?? 0) > 0
+    (option.totalRewards ?? 0) > 0 || (option.totalPregameRewards ?? 0) > 0 || hasAlphaRewards(option)
   ));
 };
 
 /**
- * Fetches the reward markets from the Alpha REST API.
- * Requires an API key.
+ * Fetches markets with USDC or ALPHA pools, including rewarded child outcomes.
+ * Requires an API key; no wallet, signer, or mnemonic is needed for this read.
+ * ALPHA amounts use micro-ALPHA. Pool sizes are not personal earnings estimates.
  *
  * @param config - Alpha client config
  * @returns The reward markets
  */
 export const getRewardMarkets = async (
-  config: AlphaClientConfig,
+  config: Pick<AlphaClientConfig, 'apiKey' | 'apiBaseUrl'>,
 ): Promise<Market[]> => {
   if (!config.apiKey) {
     throw new Error('apiKey is required for API-based market fetching. Retrieve an API key from the Alpha Arcade platform via the Account page and pass it to the client.');
