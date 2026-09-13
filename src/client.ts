@@ -2,6 +2,9 @@ import type {
   AlphaClientConfig,
   CreateLimitOrderParams,
   CreateMarketOrderParams,
+  CreateFokOrderParams,
+  BuildFokOrderResult,
+  CreateFokOrderResult,
   CancelOrderParams,
   ProposeMatchParams,
   ProcessMatchParams,
@@ -53,6 +56,8 @@ import type {
 import {
   createLimitOrder,
   createMarketOrder,
+  buildFokOrder,
+  createFokOrder,
   cancelOrder,
   proposeMatch,
   processMatch,
@@ -213,6 +218,18 @@ export class AlphaClient {
    */
   async createMarketOrder(params: CreateMarketOrderParams): Promise<CreateOrderResult> {
     return createMarketOrder(this.config, params);
+  }
+
+  /** Build an unsigned, single-group full fill at the price limit or better.
+   * Does not sign or submit. Native liquidity only; throws if full coverage cannot fit. */
+  async buildFokOrder(params: CreateFokOrderParams): Promise<BuildFokOrderResult> {
+    return buildFokOrder(this.config, params);
+  }
+
+  /** Execute a full fill at the price limit or better, or fail the entire group.
+   * Never widens the price or splits across groups. Native liquidity only. */
+  async createFokOrder(params: CreateFokOrderParams): Promise<CreateFokOrderResult> {
+    return createFokOrder(this.config, params);
   }
 
   /**

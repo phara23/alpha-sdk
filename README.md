@@ -149,6 +149,56 @@ const result = await client.createMarketOrder({
 // result: { escrowAppId, txIds, confirmedRound, matchedQuantity, matchedPrice }
 ```
 
+#### `createFokOrder(params)` and `buildFokOrder(params)`
+
+Fill-or-kill (FOK) uses the existing native escrow contracts: escrow creation and exact fills execute in one atomic group. A failed match rejects the whole group, including escrow creation. There is no resting unfilled remainder on success.
+
+```typescript
+// Buy exactly 100 YES shares at $0.60 or better, excluding trading fees.
+const result = await client.createFokOrder({
+  marketAppId: 123456789,
+  position: 1,
+  isBuying: true,
+  quantity: 100_000_000,
+  price: 600_000,
+});
+// { escrowAppId, txIds, confirmedRound, matchedQuantity, estimatedMatchedPrice }
+```
+
+`price` is a maximum for buys and a minimum for sells. All prices and quantities use integer microunits. The method uses zero slippage, never widens the limit, and never automatically retries a rejected group. YES and NO orders support direct and complementary native matching. Automatic selection takes the best prices first and excludes the active wallet's own escrows.
+
+To select counterparties yourself, supply `matchingOrders`. Their quantities must total exactly the order quantity. The SDK revalidates each escrow's owner, side, available quantity, and effective price against the native orderbook. Caller-supplied price metadata does not override current prices.
+
+```typescript
+const built = await client.buildFokOrder({
+  marketAppId: 123456789,
+  position: 1,
+  isBuying: true,
+  quantity: 100_000_000,
+  price: 600_000,
+  matchingOrders: [
+    { escrowAppId: makerAId, owner: makerAAddress, quantity: 40_000_000 },
+    { escrowAppId: makerBId, owner: makerBAddress, quantity: 60_000_000 },
+  ],
+});
+// Omit matchingOrders to select counterparties automatically.
+console.log(Buffer.from(built.groupId).toString('base64'));
+const unsignedBytes = built.transactions.map(txn => algosdk.encodeUnsignedTransaction(txn));
+// Pass the entire unsigned group to your wallet, then submit all signed transactions together.
+```
+
+`buildFokOrder()` does not sign or submit. It returns unsigned `transactions`, `groupId`, `createEscrowTxnIndex`, `matchingOrders`, `matchedQuantity`, and `estimatedMatchedPrice`. Here `matchedQuantity` is planned coverage, not a confirmed trade. Do not remove or modify transactions after building the group.
+
+Limits and execution details:
+
+- Native escrow liquidity only; routed/RFQ liquidity is not included.
+- At most six maker escrows fit with the current transaction layout, including one required asset opt-in. Orders exceeding this limit reject before signing. Best-price selection does not search for a worse-price combination with fewer makers.
+- Insufficient depth, invalid selected fills, and invalid parameters reject before signing.
+- Liquidity can change after the orderbook read. The on-chain exact-quantity and price checks then decide whether the entire group succeeds.
+- `estimatedMatchedPrice` is the quoted weighted average, not a receipt of the actual fill price. Maker amendments can change execution prices within the fixed limit.
+- The SDK funds escrow creation and trading fees using its existing native-order builder. Successful fills can leave a fully filled escrow and unused funding for later cleanup with `cancelOrder()`.
+- FOK does not require a contract upgrade, but it does require deployments compatible with the SDK's generated market and matcher clients.
+
 #### `cancelOrder(params)`
 
 Cancels an open order and returns funds to the owner.
