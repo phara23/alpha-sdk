@@ -174,6 +174,8 @@ export type Market = {
   totalRewards?: number;
   totalPregameRewards?: number;
   rewardsPaidOut?: number;
+  /** Confirmed ALPHA LP payouts in micro-ALPHA. Omitted by older API deployments. */
+  alphaLpRewardsPaidOut?: number;
   rewardsSpreadDistance?: number;
   pregameRewardsSpreadDistance?: number;
   rewardsMinContracts?: number;
@@ -209,6 +211,8 @@ export type MarketOption = {
   totalRewards?: number;
   totalPregameRewards?: number;
   rewardsPaidOut?: number;
+  /** Confirmed ALPHA LP payouts in micro-ALPHA. Omitted by older API deployments. */
+  alphaLpRewardsPaidOut?: number;
   rewardsSpreadDistance?: number;
   pregameRewardsSpreadDistance?: number;
   rewardsMinContracts?: number;
