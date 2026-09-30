@@ -19,6 +19,9 @@ export const TINYMAN_ALPHA_ALGO_LP_ASSET_ID = 2741164994;
 /** Mainnet Myth Finance alphaALGO dualSTAKE */
 export const MYTH_ALPHA_ALGO_ASSET_ID = 2944427000;
 
+/** Mainnet Pact weighted ALGO/ALPHA LP token (pool app 3689981855) */
+export const PACT_ALGO_ALPHA_LP_ASSET_ID = 3689981858;
+
 /** Descriptor for a stakeable pool (ALPHA or an LP/LST clone). */
 export type StakingPoolKind = 'alpha' | 'lp' | 'lst';
 
@@ -29,27 +32,34 @@ export const DEFAULT_STAKING_POOLS: {
   weight: number;
   kind: StakingPoolKind;
 }[] = [
-  { id: 'alpha', label: 'ALPHA', stakeAssetId: DEFAULT_ALPHA_ASSET_ID, weight: 20, kind: 'alpha' },
+  { id: 'alpha', label: 'ALPHA', stakeAssetId: DEFAULT_ALPHA_ASSET_ID, weight: 45, kind: 'alpha' },
   {
     id: 'tm-alpha-usdc',
     label: 'Tinyman ALPHA-USDC LP',
     stakeAssetId: TINYMAN_ALPHA_USDC_LP_ASSET_ID,
-    weight: 35,
+    weight: 20,
     kind: 'lp',
   },
   {
     id: 'tm-alpha-algo',
     label: 'Tinyman ALPHA-ALGO LP',
     stakeAssetId: TINYMAN_ALPHA_ALGO_LP_ASSET_ID,
-    weight: 30,
+    weight: 20,
     kind: 'lp',
   },
   {
     id: 'myth-alpha-algo',
     label: 'Myth alphaALGO',
     stakeAssetId: MYTH_ALPHA_ALGO_ASSET_ID,
-    weight: 15,
+    weight: 10,
     kind: 'lst',
+  },
+  {
+    id: 'pact-algo-alpha',
+    label: 'Pact ALGO-ALPHA LP',
+    stakeAssetId: PACT_ALGO_ALPHA_LP_ASSET_ID,
+    weight: 5,
+    kind: 'lp',
   },
 ];
 
