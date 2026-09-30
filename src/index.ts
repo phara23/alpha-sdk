@@ -9,6 +9,7 @@ export type {
   // Config
   AlphaClientConfig,
   // Market
+  AlphaLpRewards,
   Market,
   MarketOption,
   MarketGlobalState,
@@ -17,6 +18,9 @@ export type {
   OrderSide,
   CreateLimitOrderParams,
   CreateMarketOrderParams,
+  CreateFokOrderParams,
+  BuildFokOrderResult,
+  CreateFokOrderResult,
   CancelOrderParams,
   ProposeMatchParams,
   ProcessMatchParams,
@@ -103,7 +107,7 @@ export type {
 } from './types.js';
 
 // Market discovery
-export { getMarketsOnChain, getMarketOnChain, getLiveMarketsFromApi, getMarketFromApi } from './modules/markets.js';
+export { getMarketsOnChain, getMarketOnChain, getLiveMarketsFromApi, getMarketFromApi, getRewardMarkets } from './modules/markets.js';
 export {
   getResolutionState,
   proposeResolution,

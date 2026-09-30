@@ -1,4 +1,4 @@
-import type { Algodv2, Indexer, TransactionSigner } from 'algosdk';
+import type { Algodv2, Indexer, Transaction, TransactionSigner } from 'algosdk';
 
 // ============================================
 // Client Configuration
@@ -132,6 +132,18 @@ export type PerpPositionView = PerpPosition & {
 // Market Types
 // ============================================
 
+/** Fixed ALPHA LP pools. All amounts are micro-ALPHA (1 ALPHA = 1,000,000), never USD. */
+export type AlphaLpRewards = {
+  /** Non-sports budget per day. */
+  dailyMicro?: number;
+  /** Sports budget per day before gameStartTimeMs. */
+  pregameDailyMicro?: number;
+  /** Fixed total pool across the game, not a daily rate. */
+  inGameMicro?: number;
+  /** Campaign start in Unix milliseconds. Operator changes begin at the next hour. */
+  startsAt?: number;
+};
+
 /** A prediction market (from the Alpha API or on-chain discovery) */
 export type Market = {
   /** Market ID (app ID as string for on-chain, UUID for API) */
@@ -157,10 +169,13 @@ export type Market = {
   featured?: boolean;
   options?: MarketOption[];
   feeBase?: number;
-  /** Liquidty Rewards Info */
+  /** ALPHA pool configuration, independent of USDC. Requires asset opt-in when sampled. */
+  alphaLpRewards?: AlphaLpRewards;
   totalRewards?: number;
   totalPregameRewards?: number;
   rewardsPaidOut?: number;
+  /** Confirmed ALPHA LP payouts in micro-ALPHA. Omitted by older API deployments. */
+  alphaLpRewardsPaidOut?: number;
   rewardsSpreadDistance?: number;
   pregameRewardsSpreadDistance?: number;
   rewardsMinContracts?: number;
@@ -191,9 +206,13 @@ export type MarketOption = {
   noAssetId: number;
   yesProb: number;
   noProb: number;
+  /** This outcome's ALPHA pool. Never copy a parent pool to each outcome. */
+  alphaLpRewards?: AlphaLpRewards;
   totalRewards?: number;
   totalPregameRewards?: number;
   rewardsPaidOut?: number;
+  /** Confirmed ALPHA LP payouts in micro-ALPHA. Omitted by older API deployments. */
+  alphaLpRewardsPaidOut?: number;
   rewardsSpreadDistance?: number;
   pregameRewardsSpreadDistance?: number;
   rewardsMinContracts?: number;
@@ -258,6 +277,30 @@ export type CreateLimitOrderParams = {
   isBuying: boolean;
   /** Fee base in microunits (e.g. 70000 = 7%). If omitted, reads from market global state. */
   feeBase?: number;
+};
+
+/** FOK: price is the maximum buy price or minimum sell price, in microunits. */
+export type CreateFokOrderParams = CreateLimitOrderParams & {
+  /** Optional exact fills, revalidated against the native orderbook.
+   * Omit to select counterparties automatically, best price first. */
+  matchingOrders?: CounterpartyMatch[];
+};
+
+/** Unsigned FOK group. Sign and submit every transaction together, without modification. */
+export type BuildFokOrderResult = {
+  transactions: Transaction[];
+  groupId: Uint8Array;
+  createEscrowTxnIndex: number;
+  matchingOrders: CounterpartyMatch[];
+  matchedQuantity: number;
+  /** Quoted average price; maker amendments can change execution price within the limit. */
+  estimatedMatchedPrice: number;
+};
+
+/** Confirmed full fill, with the quoted (not actual execution) average price. */
+export type CreateFokOrderResult = CreateOrderResult & {
+  matchedQuantity: number;
+  estimatedMatchedPrice: number;
 };
 
 /** Parameters for creating a market order */

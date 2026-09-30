@@ -1,6 +1,6 @@
 {
   "name": "@alpha-arcade/sdk",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "description": "TypeScript SDK for trading on Alpha Market — Algorand prediction markets. Place orders, manage positions, read orderbooks from API or chain, and build trading bots.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -25,7 +25,7 @@
     "lint": "eslint src/",
     "docs": "typedoc --out docs src/index.ts",
     "test": "vitest run",
-    "test:unit": "vitest run tests/fees.test.ts",
+    "test:unit": "vitest run tests/fees.test.ts tests/alpha-lp.test.ts",
     "test:integration": "vitest run tests/markets.test.ts tests/orderbook.test.ts tests/trading.test.ts tests/matching.test.ts tests/positions.test.ts tests/claim.test.ts",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"

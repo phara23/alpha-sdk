@@ -149,6 +149,56 @@ const result = await client.createMarketOrder({
 // result: { escrowAppId, txIds, confirmedRound, matchedQuantity, matchedPrice }
 ```
 
+#### `createFokOrder(params)` and `buildFokOrder(params)`
+
+Fill-or-kill (FOK) uses the existing native escrow contracts: escrow creation and exact fills execute in one atomic group. A failed match rejects the whole group, including escrow creation. There is no resting unfilled remainder on success.
+
+```typescript
+// Buy exactly 100 YES shares at $0.60 or better, excluding trading fees.
+const result = await client.createFokOrder({
+  marketAppId: 123456789,
+  position: 1,
+  isBuying: true,
+  quantity: 100_000_000,
+  price: 600_000,
+});
+// { escrowAppId, txIds, confirmedRound, matchedQuantity, estimatedMatchedPrice }
+```
+
+`price` is a maximum for buys and a minimum for sells. All prices and quantities use integer microunits. The method uses zero slippage, never widens the limit, and never automatically retries a rejected group. YES and NO orders support direct and complementary native matching. Automatic selection takes the best prices first and excludes the active wallet's own escrows.
+
+To select counterparties yourself, supply `matchingOrders`. Their quantities must total exactly the order quantity. The SDK revalidates each escrow's owner, side, available quantity, and effective price against the native orderbook. Caller-supplied price metadata does not override current prices.
+
+```typescript
+const built = await client.buildFokOrder({
+  marketAppId: 123456789,
+  position: 1,
+  isBuying: true,
+  quantity: 100_000_000,
+  price: 600_000,
+  matchingOrders: [
+    { escrowAppId: makerAId, owner: makerAAddress, quantity: 40_000_000 },
+    { escrowAppId: makerBId, owner: makerBAddress, quantity: 60_000_000 },
+  ],
+});
+// Omit matchingOrders to select counterparties automatically.
+console.log(Buffer.from(built.groupId).toString('base64'));
+const unsignedBytes = built.transactions.map(txn => algosdk.encodeUnsignedTransaction(txn));
+// Pass the entire unsigned group to your wallet, then submit all signed transactions together.
+```
+
+`buildFokOrder()` does not sign or submit. It returns unsigned `transactions`, `groupId`, `createEscrowTxnIndex`, `matchingOrders`, `matchedQuantity`, and `estimatedMatchedPrice`. Here `matchedQuantity` is planned coverage, not a confirmed trade. Do not remove or modify transactions after building the group.
+
+Limits and execution details:
+
+- Native escrow liquidity only; routed/RFQ liquidity is not included.
+- At most six maker escrows fit with the current transaction layout, including one required asset opt-in. Orders exceeding this limit reject before signing. Best-price selection does not search for a worse-price combination with fewer makers.
+- Insufficient depth, invalid selected fills, and invalid parameters reject before signing.
+- Liquidity can change after the orderbook read. The on-chain exact-quantity and price checks then decide whether the entire group succeeds.
+- `estimatedMatchedPrice` is the quoted weighted average, not a receipt of the actual fill price. Maker amendments can change execution prices within the fixed limit.
+- The SDK funds escrow creation and trading fees using its existing native-order builder. Successful fills can leave a fully filled escrow and unused funding for later cleanup with `cancelOrder()`.
+- FOK does not require a contract upgrade, but it does require deployments compatible with the SDK's generated market and matcher clients.
+
 #### `cancelOrder(params)`
 
 Cancels an open order and returns funds to the owner.
@@ -550,15 +600,47 @@ const market = await client.getMarketFromApi('uuid-here');
 
 #### `getRewardMarkets()`
 
-Fetches markets that have liquidity rewards from the Alpha REST API. Requires `apiKey`. Returns the same `Market[]` shape with reward fields populated: `totalRewards`, `totalPregameRewards`, `rewardsPaidOut`, `rewardsSpreadDistance`, `rewardsMinContracts`, `lastRewardAmount`, `lastRewardTs`. For sports markets, pregame liquidity rewards may be exposed via `totalPregameRewards`.
+Fetches all markets with USDC or ALPHA liquidity reward pools, including rewarded child outcomes. Requires `apiKey`. `client.getRewardMarkets()` returns `Market[]`. The standalone function supports the same read without a wallet or signer:
 
 ```typescript
-const rewardMarkets = await client.getRewardMarkets();
-for (const m of rewardMarkets) {
-  const rewardTotal = m.totalRewards ?? m.totalPregameRewards ?? 0;
-  console.log(`${m.title}: $${rewardTotal / 1e6} total rewards`);
+import { getRewardMarkets, type AlphaLpRewards } from '@alpha-arcade/sdk';
+
+const markets = await getRewardMarkets({ apiKey: process.env.ALPHA_API_KEY });
+for (const market of markets) {
+  // Each executable child has its own pool. Do not multiply the parent pool.
+  const outcomes = market.options?.length ? market.options : [market];
+  for (const outcome of outcomes) {
+    const alpha: AlphaLpRewards | undefined = outcome.alphaLpRewards;
+    console.log(`${market.title} / ${outcome.title}`);
+    console.log('USDC pool:', (outcome.totalRewards ?? 0) / 1e6);
+    console.log('USDC pregame/day:', (outcome.totalPregameRewards ?? 0) / 1e6);
+    console.log('ALPHA/day:', (alpha?.dailyMicro ?? 0) / 1e6);
+    console.log('ALPHA pregame/day:', (alpha?.pregameDailyMicro ?? 0) / 1e6);
+    console.log('ALPHA game pool:', (alpha?.inGameMicro ?? 0) / 1e6);
+    if (alpha?.startsAt) console.log('ALPHA starts:', new Date(alpha.startsAt).toISOString());
+  }
 }
 ```
+
+**Token amounts and periods**
+
+- USDC keeps the existing fields: `totalRewards`, `totalPregameRewards`, `rewardsPaidOut`, `lastRewardAmount`, and `lastRewardTs`. USDC amounts use six decimal places. `totalRewards` is a daily budget for non-sports markets and a fixed game pool for sports. `totalPregameRewards` is a pregame daily budget.
+- Optional `alphaLpRewards` uses the exported `AlphaLpRewards` type. `dailyMicro` is a non-sports daily budget; `pregameDailyMicro` is a pregame daily budget; `inGameMicro` is a fixed game pool. All amounts are micro-ALPHA: divide by 1,000,000 to display ALPHA. Never label them as dollars or add them to USDC totals.
+- Optional `alphaLpRewardsPaidOut` is the cumulative confirmed LP payout total in micro-ALPHA for that market or outcome. Divide by 1,000,000 to display ALPHA. It is independent of `rewardsPaidOut` (USDC) and does not include pending payouts. A value of `0` means no confirmed ALPHA payouts; an omitted field means the API has not supplied the total. Do not add a parent total to its outcome totals.
+- `startsAt` is Unix milliseconds. Operator changes take effect at the next hour. An existing hourly block keeps its frozen budget. An absent, empty, or all-zero ALPHA configuration means no ALPHA campaign; a future start is scheduled, not active.
+- `getLiveMarketsFromApi()` and `getMarketFromApi()` also preserve this configuration. On-chain market discovery cannot provide these operator-managed LP budgets.
+
+**Scoring and opt-in**
+
+Both tokens use the existing order size, age, spread, and market liquidity rules. `rewardsSpreadDistance`, `pregameRewardsSpreadDistance`, and `rewardsMinContracts` still describe those rules. Both tokens pay hourly; transfers can arrive separately.
+
+ALPHA adds an asset opt-in requirement. Each sample includes only opted-in, unfrozen ALPHA holdings in its ALPHA score denominator. Wallets without ALPHA opt-in still earn USDC. A later opt-in never earns ALPHA for earlier samples. Samples without ALPHA-eligible wallets leave that sample's allocation unspent. Failed holding checks also leave that sample's ALPHA allocation unspent. If a wallet opts out after earning, its ALPHA entitlement stays pending until it can receive ALPHA again.
+
+Opt in to the ALPHA asset on the same wallet that provides liquidity. Buying or staking ALPHA is not required. Mainnet ALPHA is ASA `2726252423`. For other deployments, read the asset ID from the backend's `/get-lp-reward-config` endpoint; do not assume the mainnet asset ID works on testnet. This read method does not sign an opt-in transaction.
+
+Pool sizes are market budgets, not personal earnings estimates. A wallet's ALPHA share can differ from its USDC share because each token has a separate denominator. Do not estimate ALPHA earnings by multiplying the wallet's USDC share by the ALPHA pool.
+
+See [`examples/get-reward-markets.ts`](examples/get-reward-markets.ts) for a runnable example that prints both tokens for each outcome.
 
 ---
 

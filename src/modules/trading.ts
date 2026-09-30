@@ -9,6 +9,9 @@ import type {
   AlphaClientConfig,
   CreateLimitOrderParams,
   CreateMarketOrderParams,
+  CreateFokOrderParams,
+  BuildFokOrderResult,
+  CreateFokOrderResult,
   CancelOrderParams,
   ProposeMatchParams,
   ProcessMatchParams,
@@ -24,6 +27,7 @@ import { calculateFee } from '../utils/fees.js';
 import { getMarketGlobalState, checkAssetOptIn, decodeGlobalState } from '../utils/state.js';
 import { calculateMatchingOrders } from '../utils/matching.js';
 import { getOrderbook } from './orderbook.js';
+import { selectFokMatches, validateFokParams } from '../utils/fok.js';
 
 /**
  * Extracts the created escrow app ID from the transaction using retries.
@@ -157,13 +161,49 @@ export const createMarketOrder = async (
   return { ...result, matchedQuantity: totalMatchedQuantity, matchedPrice };
 };
 
-/**
- * Internal: builds and executes the order creation atomic group.
- */
-const createOrder = async (
+type OrderBuild = { atc: AtomicTransactionComposer; createEscrowTxnIndex: number };
+type OrderBuildParams = CreateLimitOrderParams & { slippage: number; matchingOrders: CounterpartyMatch[] };
+
+const prepareFokOrder = async (config: AlphaClientConfig, params: CreateFokOrderParams) => {
+  // Snapshot caller input before any asynchronous reads.
+  const snapshot = { ...params, matchingOrders: params.matchingOrders?.map(m => ({ ...m })) };
+  validateFokParams(snapshot);
+  const book = await getOrderbook(config, snapshot.marketAppId);
+  const matchingOrders = selectFokMatches(snapshot, book, config.activeAddress);
+  const weighted = matchingOrders.reduce((sum, m) => sum + BigInt(m.price!) * BigInt(m.quantity), 0n);
+  const quantity = BigInt(snapshot.quantity);
+  const estimatedMatchedPrice = Number((weighted + quantity / 2n) / quantity);
+  const built = await buildOrder(config, { ...snapshot, slippage: 0, matchingOrders }, true);
+  return { ...built, matchingOrders, matchedQuantity: snapshot.quantity, estimatedMatchedPrice };
+};
+
+/** Build a FOK group without signing or submitting. Submit all transactions unchanged together. */
+export const buildFokOrder = async (
+  config: AlphaClientConfig, params: CreateFokOrderParams,
+): Promise<BuildFokOrderResult> => {
+  const { atc, ...details } = await prepareFokOrder(config, params);
+  const transactions = atc.buildGroup().map(({ txn }) => txn);
+  return { ...details, transactions, groupId: new Uint8Array(transactions[0].group!) };
+};
+
+/** Execute a FOK group once. A stale maker fails the entire group; no automatic price widening. */
+export const createFokOrder = async (
+  config: AlphaClientConfig, params: CreateFokOrderParams,
+): Promise<CreateFokOrderResult> => {
+  const { atc, createEscrowTxnIndex, matchedQuantity, estimatedMatchedPrice } = await prepareFokOrder(config, params);
+  const result = await executeOrder(config, { atc, createEscrowTxnIndex });
+  return { ...result, matchedQuantity, estimatedMatchedPrice };
+};
+
+const createOrder = async (config: AlphaClientConfig, params: OrderBuildParams): Promise<CreateOrderResult> =>
+  executeOrder(config, await buildOrder(config, params));
+
+/** Shared unsigned builder for existing orders and FOK. */
+const buildOrder = async (
   config: AlphaClientConfig,
-  params: CreateLimitOrderParams & { slippage: number; matchingOrders: CounterpartyMatch[] },
-): Promise<CreateOrderResult> => {
+  params: OrderBuildParams,
+  fok = false,
+): Promise<OrderBuild> => {
   const { algodClient, indexerClient, signer, activeAddress, matcherAppId, usdcAssetId } = config;
   const { marketAppId, position, price, quantity, isBuying, slippage, matchingOrders } = params;
 
@@ -228,8 +268,13 @@ const createOrder = async (
 
   // Step 3: Fund transfer (USDC if buying, outcome token if selling)
   const fundAmount = isBuying
-    ? Math.floor((quantity * (price + slippage)) / 1_000_000) + fee
+    ? (fok
+      ? Number(BigInt(quantity) * BigInt(price) / 1_000_000n)
+      : Math.floor((quantity * (price + slippage)) / 1_000_000)) + fee
     : quantity;
+  if (fok && (!Number.isSafeInteger(fundAmount) || fundAmount < 0)) {
+    throw new Error('FOK funding exceeds the supported safe integer range.');
+  }
   const fundAssetId = isBuying ? usdcAssetId : position === 1 ? yesAssetId : noAssetId;
 
   const assetTransferTxn = await algokit.transferAsset(
@@ -266,7 +311,7 @@ const createOrder = async (
       {
         marketApp: marketAppId,
         maker: matchingOrder.escrowAppId,
-        quantityMatched: Math.min(matchingOrder.quantity, quantity),
+        quantityMatched: fok ? matchingOrder.quantity : Math.min(matchingOrder.quantity, quantity),
         takerAddress: activeAddress,
         makerAddress: matchingOrder.owner,
         feeAddress: marketFeeAddress,
@@ -282,6 +327,16 @@ const createOrder = async (
     matchIndex++;
   }
 
+  if (fok && atc.count() > 16) {
+    throw new Error('FOK cannot fit in one atomic group. No order was placed.');
+  }
+  return { atc, createEscrowTxnIndex };
+};
+
+const executeOrder = async (
+  config: AlphaClientConfig, { atc, createEscrowTxnIndex }: OrderBuild,
+): Promise<CreateOrderResult> => {
+  const { algodClient, indexerClient } = config;
   // Execute the atomic group
   const result = await atc.execute(algodClient, 4);
 
